@@ -33,7 +33,7 @@ GDCdownload <- function(query,
                         method = "api",
                         directory = "GDCdata") {
 
-    if(missing(query)) stop("Please set query argument")
+    if(missing(query)) warning("Please set query argument")
     if(!(method %in% c("api","client"))) stop("method arguments possible values are: 'api' or 'client'")
     manifest <- query$results[[1]][,c("file_id","file_name","md5sum","file_size","state")]
     colnames(manifest) <- c("id","filename","md5","size","state")
@@ -116,7 +116,7 @@ GDCdownload <- function(query,
                 unlink(name) # remove tar
                 if(success != 0){
                     print(success)
-                    stop("There was an error in the download process, please execute it again")
+                    warning("There was an error in the download process, please execute it again")
                 }
             }
             # moving to project/source/data_category/data_type/file_id
@@ -222,4 +222,3 @@ GDCclientInstall <- function(){
 TCGAdownload <- function(data = NULL, path = ".", type = NULL, samples = NULL, force = FALSE) {
     stop("TCGA data has moved from DCC server to GDC server. Please use GDCdownload function")
 }
-
