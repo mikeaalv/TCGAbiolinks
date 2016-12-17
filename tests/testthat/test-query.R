@@ -98,20 +98,10 @@ test_that("GDCquery can filter by access level", {
 })
 
 test_that("GDCquery_Maf works", {
-    acc.maf <- GDCquery_Maf("ACC")
+    acc.maf <- GDCquery_Maf("ACC",pipelines = "muse")
     expect_true(nrow(acc.maf) > 0)
-    acc.maf <- GDCquery_Maf("ACC", directory = "maf")
+    acc.maf <- GDCquery_Maf("ACC", directory = "maf", pipelines = "muse")
     expect_true(nrow(acc.maf) > 0)
     unlink("GDCdata",recursive = TRUE, force = TRUE)
-    unlink("maf",recursive = TRUE, force = TRUE)
-})
-
-test_that("Download mad using GDCquery works", {
-    query <- GDCquery(project = "TCGA-KIRP",
-                        data.category = "Simple Nucleotide Variation",
-                        data.type = "Masked Somatic Mutation")
-    GDCdownload(query, method = "api", directory = "maf")
-    maf <- GDCprepare(query, directory = "maf")
-    expect_true(nrow(maf) > 0)
     unlink("maf",recursive = TRUE, force = TRUE)
 })

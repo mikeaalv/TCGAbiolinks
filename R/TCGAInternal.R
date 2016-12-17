@@ -71,6 +71,68 @@ checkLegacyPlatform <- function(project,data.category, legacy = FALSE){
     }
 }
 
+checkDataTypeInput <- function(legacy, data.type){
+    if(legacy){
+        legacy.data.type <- c("Copy number segmentation",
+                              "Raw intensities",
+                              "Aligned reads",
+                              "Copy number estimate",
+                              "Simple nucleotide variation",
+                              "Gene expression quantification",
+                              "Coverage WIG",
+                              "miRNA gene quantification",
+                              "Genotypes",
+                              "miRNA isoform quantification",
+                              "Normalized copy numbers",
+                              "Isoform expression quantification",
+                              "Normalized intensities",
+                              "Tissue slide image",
+                              "Exon quantification",
+                              "Exon junction quantification",
+                              "Methylation beta value",
+                              "Unaligned reads",
+                              "Diagnostic image",
+                              "CGH array QC",
+                              "Biospecimen Supplement",
+                              "Pathology report",
+                              "Clinical Supplement",
+                              "Intensities",
+                              "Protein expression quantification",
+                              "Microsatellite instability",
+                              "Structural variation",
+                              "Auxiliary test",
+                              "Copy number QC metrics",
+                              "Intensities Log2Ratio",
+                              "Methylation array QC metrics",
+                              "Clinical data",
+                              "Copy number variation",
+                              "ABI sequence trace",
+                              "Biospecimen data",
+                              "Simple somatic mutation",
+                              "Bisulfite sequence alignment",
+                              "Methylation percentage",
+                              "Sequencing tag",
+                              "Sequencing tag counts",
+                              "LOH")
+        if(!data.type %in% legacy.data.type) {
+            print(knitr::kable(as.data.frame(sort(legacy.data.type))))
+            stop("Please set a data.type argument from the column legacy.data.type above")
+        }
+    } else {
+        harmonized.data.type <- c("Gene Expression Quantification",
+                                  "Copy Number Segment",
+                                  "Masked Copy Number Segment",
+                                  "Isoform Expression Quantification",
+                                  "miRNA Expression Quantification",
+                                  "Biospecimen Supplement",
+                                  "Clinical Supplement",
+                                  "Masked Somatic Mutation")
+        if(!data.type %in% harmonized.data.type) {
+            print(knitr::kable(as.data.frame(sort(harmonized.data.type))))
+            stop("Please set a data.type argument from the column harmonized.data.type above")
+        }
+    }
+}
 
 checkDataCategoriesInput <- function(project,data.category, legacy = FALSE){
     project.summary <- getProjectSummary(project, legacy)
@@ -87,8 +149,8 @@ checkDataCategoriesInput <- function(project,data.category, legacy = FALSE){
 checkBarcodeDefinition <- function(definition){
     for(i in definition){
         if(!(i %in% getBarcodeDefinition()$tissue.definition)){
-        print(knitr::kable(getBarcodeDefinition()))
-        stop(i, " was not found. Please select a difinition from the table above ")
+            print(knitr::kable(getBarcodeDefinition()))
+            stop(i, " was not found. Please select a difinition from the table above ")
         }
     }
 }
@@ -103,8 +165,20 @@ checkBarcodeDefinition <- function(definition){
 #' projects <- getGDCprojects()
 #' @return A data frame with last GDC projects
 getGDCprojects <- function(){
-    projects <- read_tsv("https://gdc-api.nci.nih.gov/projects?size=1000&format=tsv", col_types = "ccccccc")
-    projects$tumor <- unlist(lapply(projects$project_id, function(x){unlist(str_split(x,"-"))[2]}))
+
+    projects  <- tryCatch({
+        projects <- read_tsv("https://gdc-api.nci.nih.gov/projects?size=1000&format=tsv", col_types = "ccccccc")
+        projects$tumor <- unlist(lapply(projects$project_id, function(x){unlist(str_split(x,"-"))[2]}))
+        return(projects)
+    }, error = function(e) {
+        Sys.sleep(1)
+        url <- "https://gdc-api.nci.nih.gov/projects?size=1000&format=json"
+        json <- fromJSON(content(GET(url), as = "text", encoding = "UTF-8"), simplifyDataFrame = TRUE)
+        projects <- json$data$hits
+        projects$tumor <- unlist(lapply(projects$project_id, function(x){unlist(str_split(x,"-"))[2]}))
+        return(projects)
+    })
+    if(nrow(projects) == 0) stop("I couldn't access GDC API. Please, check if it is not down.")
     return(projects)
 }
 
@@ -137,33 +211,33 @@ getNbFiles <- function(project, data.category, legacy = FALSE){
 
 .quantileNormalization <-
     function(wd, distribution) {
-    n <- nrow(wd)
-    m <- ncol(wd)
-    if(!missing(distribution))
-        if(m != length(distribution))
-            stop("The reference distribution has length
+        n <- nrow(wd)
+        m <- ncol(wd)
+        if(!missing(distribution))
+            if(m != length(distribution))
+                stop("The reference distribution has length
                  different from the col dimension of the data matrix.") else
-                distribution  <-  sort(distribution)
+                     distribution  <-  sort(distribution)
 
-    o <- matrix(0, n, m)
-    for(i in 1:n)
-        o[i,] <- order(wd[i,])
-
-    j <- 1
-    tmp <- rep(0, n)
-
-    while(j <= m) {
-        if(missing(distribution)) {
-            for(i in 1:n)
-                tmp[i] <- wd[i,o[i,j]]
-            value <- mean(tmp)
-        } else value  <- distribution[j]
+        o <- matrix(0, n, m)
         for(i in 1:n)
-            wd[i,o[i,j]] <- value
-        j <- j + 1
+            o[i,] <- order(wd[i,])
+
+        j <- 1
+        tmp <- rep(0, n)
+
+        while(j <= m) {
+            if(missing(distribution)) {
+                for(i in 1:n)
+                    tmp[i] <- wd[i,o[i,j]]
+                value <- mean(tmp)
+            } else value  <- distribution[j]
+            for(i in 1:n)
+                wd[i,o[i,j]] <- value
+            j <- j + 1
+        }
+        return(wd)
     }
-    return(wd)
-}
 
 is.windows <- function() {
     Sys.info()["sysname"] == "Windows"
@@ -229,9 +303,6 @@ is.linux <- function() {
 #' @import ggplot2
 #' @importFrom plyr ddply
 #' @importFrom scales muted
-# @import plyr
-# @import scales
-# @import grid
 #' @import stats
 #' @keywords internal
 #' @return  a ggplot2 plot
@@ -443,4 +514,122 @@ GeneSplitRegulon <- function(Genelist,Sep){
     RegSplitted <- as.matrix(unlist(strsplit(as.character(Genelist), Sep)))
 
     return(RegSplitted)
+}
+
+
+getGistic <- function(disease) {
+    base <- paste0("http://gdac.broadinstitute.org/runs/analyses__latest/data/", disease)
+    x <- tryCatch({
+        read_html(base)  %>% html_nodes("a") %>% html_attr("href")
+    }, error = function(e) {
+        return(NULL)
+    })
+    if(is.null(x)) {
+        message("No GISTIC file found")
+        return(NULL)
+    }
+    base <- file.path(base,tail(x,n=1))
+    x <- read_html(base)  %>% html_nodes("a") %>% html_attr("href")
+    x <- x[grep("CopyNumber_Gistic2.Level_4",x)]
+
+    if(!file.exists(x[1])) {
+        if(Sys.info()["sysname"] == "Windows") mode <- "wb" else  mode <- "w"
+        downloader::download(file.path(base,x[1]),x[1], mode = mode)
+    }
+    # Check if downlaod was not corrupted
+    md5 <- readr::read_table(file.path(base,x[2]), col_names = FALSE, progress = FALSE)$X1
+    if(tools::md5sum(x[1]) != md5) stop("Error while downloading CNV data")
+    file <- paste0(gsub(".tar.gz","",x[1]),"/all_thresholded.by_genes.txt")
+    if(!file.exists(file)) {
+        compressed.files <- untar(x[1], list = TRUE)
+        compressed.files <- compressed.files[grepl("all_thresholded.by_genes.txt", compressed.files)]
+        untar(x[1],files = compressed.files )
+    }
+    ret <- tryCatch({
+        fread(file, data.table = FALSE, colClasses = "character")
+    }, error = function(e) {
+        file <- dir(pattern = "all_thresholded.by_genes.txt", recursive = T, full.names = T)
+        file <- file[grep(disease,file,ignore.case = TRUE)]
+        fread(file, data.table = FALSE, colClasses = "character")
+    })
+    return(ret)
+}
+get.cnv <- function(project, genes){
+    if(missing(project)) stop("Argument project is missing")
+    if(missing(genes)) stop("Argument genes is missing")
+
+    gistic <- getGistic(gsub("TCGA-","",project))
+    cnv.annotation <- t(gistic[tolower(gistic[,1]) %in% tolower(genes),-c(2:3)])
+    colnames(cnv.annotation) <- paste0("gistic2_",cnv.annotation[1,])
+    cnv.annotation <- cnv.annotation[-1,, drop = FALSE]
+    rownames(cnv.annotation) <- substr(gsub("\\.","-",rownames(cnv.annotation)),1,15)
+    return(cnv.annotation)
+}
+
+get.mutation <- function(project, genes, pipeline = pipeline){
+    if(missing(project)) stop("Argument project is missing")
+    if(missing(genes)) stop("Argument genes is missing")
+
+    # Get mutation annotation file
+    maf <- GDCquery_Maf(gsub("TCGA-","",project),pipelines = pipeline)
+    mut <- NULL
+    for(i in genes) {
+        if(!i %in% maf$Hugo_Symbol) next
+        aux <-  data.frame(patient = substr(unique(maf[grepl(i,maf$Hugo_Symbol,ignore.case = TRUE),]$Tumor_Sample_Barcode),1,15), mut = TRUE)
+        colnames(aux)[2] <- paste0("mut_",i)
+        if(is.null(mut)) {
+            mut <- aux
+        } else {
+            mut <- merge(mut, aux, by = "patient", all = TRUE)
+        }
+    }
+    rownames(mut) <- mut$patient; mut$patient <- NULL
+
+    # Lets replaces NA to FALSE
+    # TRUE: has mutation
+    # FALSE: has no mutation
+    mut <- !is.na(mut)
+
+    return(mut)
+}
+get.mut.gistc <- function(project, genes,mut.pipeline) {
+    if(missing(project)) stop("Argument project is missing")
+    if(missing(genes)) stop("Argument genes is missing")
+    mut <- get.mutation(project, genes, pipeline = mut.pipeline )
+    cnv <- get.cnv(project, genes)
+    if(!is.null(mut) & !is.null(cnv)) {
+        annotation <- merge(mut, cnv, by = 0 , sort = FALSE,all=TRUE)
+        mut.idx <- grep("mut_",colnames(annotation))
+        annotation[,mut.idx] <- !is.na(annotation[,mut.idx]) & annotation[,mut.idx] != FALSE
+        rownames(annotation) <- annotation$Row.names
+        annotation$Row.names <- NULL
+        return(annotation)
+    } else if(!is.null(mut) & is.null(cnv)) {
+        return(mut)
+    } else if(is.null(mut) & !is.null(cnv)) {
+        return(cnv)
+    }
+    return(NULL)
+}
+get.mut.gistc.information <- function(df, project, genes, mut.pipeline = "mutect2") {
+    order <- rownames(df)
+    for(i in genes) if(!tolower(i) %in% tolower(EAGenes$Gene)) message(paste("Gene not found:", i))
+    info <- get.mut.gistc(project, genes, mut.pipeline = mut.pipeline)
+    if(is.null(info)) return(df)
+    info$aux <- rownames(info)
+    df$aux <- substr(df$barcode,1,15)
+    df <- merge(df,info,by = "aux", all.x = TRUE, sort = FALSE)
+    df$aux <- NULL
+    mut.idx <- grep("mut_",colnames(df))
+    df[,mut.idx] <- !is.na(df[,mut.idx]) & df[,mut.idx] != FALSE
+    mut.idx <- grep("mut_",colnames(df))
+    for(i in paste0("mut_",genes)){
+        if(!i %in% colnames(df)) {
+            df$aux <- FALSE
+            colnames(df)[grep("aux",colnames(df))] <- i
+        }
+    }
+    rownames(df) <- df$barcode
+    df <- DataFrame(df[order,])
+    return(df)
 }

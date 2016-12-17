@@ -2,8 +2,8 @@ Package: TCGAbiolinks
 Type: Package
 Title: TCGAbiolinks: An R/Bioconductor package for integrative analysis with
     TCGA data
-Version: 2.1.6
-Date: 2015-12-13
+Version: 2.3.12
+Date: 2016-12-7
 Author: Antonio Colaprico,
     Tiago Chedraoui Silva,
     Catharina Olsen,
@@ -23,9 +23,11 @@ Depends:
     R (>= 3.2)
 Imports:
     downloader (>= 0.4),
-    GGally,
+    survminer,
     grDevices,
+    gridExtra,
     graphics,
+    tibble,
     GenomicRanges,
     XML (>= 3.98.0),
     Biobase,
@@ -33,13 +35,14 @@ Imports:
     xtable,
     data.table,
     EDASeq (>= 2.0.0),
-    RCurl (>= 1.95.0),
     edgeR (>= 3.0.0),
     jsonlite (>= 1.0.0),
     plyr,
+    c3net,
+    minet,
     knitr,
+    methods,
     biomaRt,
-    coin,
     gplots,
     ggplot2,
     ggthemes,
@@ -56,10 +59,7 @@ Imports:
     S4Vectors,
     ComplexHeatmap (>= 1.10.2),
     R.utils,
-    SummarizedExperiment (>= 1.2.3),
-    BiocGenerics,
-    GenomicFeatures,
-    TxDb.Hsapiens.UCSC.hg19.knownGene,
+    SummarizedExperiment (>= 1.4.0),
     limma,
     genefilter,
     ConsensusClusterPlus,
@@ -67,19 +67,15 @@ Imports:
     RColorBrewer,
     doParallel,
     dplyr,
+    clusterProfiler,
+    pathview,
     parallel,
     xml2,
-    sjPlot (>= 2.0),
-    magrittr,
-    cowplot,
-    reshape2,
-    gtable,
     httr (>= 1.2.1),
-    sjmisc,
     parmigene,
     matlab,
     circlize,
-    ggrepel
+    ggrepel (>= 0.6.3)
 Description: The aim of TCGAbiolinks is : i) facilitate the TCGA open-access
     data retrieval, ii) prepare the data using the appropriate pre-processing
     strategies, iii) provide the means to carry out different standard analyses

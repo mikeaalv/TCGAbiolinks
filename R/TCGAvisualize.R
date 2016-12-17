@@ -353,7 +353,7 @@ TCGAvisualize_EAbarplot <- function(tf, GOMFTab, GOBPTab, GOCCTab, PathTab, nBar
     par(mfrow = mfrow)
 
     if(!missing(GOBPTab)){
-        if(!is.null(GOBPTab)){
+        if(!is.null(GOBPTab) & !is.na(GOBPTab)){
             # Plotting GOBPTab
             toPlot <- splitFun(tf, GOBPTab, nBar)
             xAxis <- barplot(toPlot[, 2], horiz = TRUE, col = color[1],
@@ -366,7 +366,7 @@ TCGAvisualize_EAbarplot <- function(tf, GOMFTab, GOBPTab, GOCCTab, PathTab, nBar
         }
     }
     if(!missing(GOCCTab)){
-        if(!is.null(GOCCTab)){
+        if(!is.null(GOCCTab) & !is.na(GOCCTab)){
             # Plotting GOCCTab
             toPlot <- splitFun(tf, GOCCTab, nBar)
             xAxis <- barplot(toPlot[, 2], horiz = TRUE, col = color[2],
@@ -379,7 +379,7 @@ TCGAvisualize_EAbarplot <- function(tf, GOMFTab, GOBPTab, GOCCTab, PathTab, nBar
         }
     }
     if(!missing(GOMFTab)){
-        if(!is.null(GOMFTab)){
+        if(!is.null(GOMFTab) & !is.na(GOMFTab)){
             # Plotting GOMFTab
             toPlot <- splitFun(tf, GOMFTab, nBar)
             xAxis <- barplot(toPlot[, 2], horiz = TRUE, col = color[3],
@@ -392,7 +392,7 @@ TCGAvisualize_EAbarplot <- function(tf, GOMFTab, GOBPTab, GOCCTab, PathTab, nBar
         }
     }
     if(!missing(PathTab)){
-        if(!is.null(PathTab)){
+        if(!is.null(PathTab) & !is.na(PathTab)){
             # Plotting PathTab
             toPlot <- splitFun(tf, PathTab, nBar)
             xAxis <- barplot(toPlot[, 2], horiz = TRUE, col = color[4],
@@ -609,6 +609,10 @@ TCGAvisualize_Tables <- function(Table, rowsForPage, TableTitle, LabelTitle, wit
 #' @param height figure height
 #' @param sortCol Name of the column to be used to sort the columns
 #' @param title Title of the plot
+#' @param rownames.size Rownames size
+#' @param color.levels A vector with the colors (low level, middle level, high level)
+#' @param extrems Extrems of colors (vector of 3 values)
+#' @param values.label Text of the levels in the heatmap
 #' @param heatmap.legend.color.bar Heatmap legends values type.
 #' Options: "continuous", "disctrete
 #' @param scale Use z-score to make the heatmap?
@@ -672,7 +676,11 @@ TCGAvisualize_Heatmap <- function(data,
                                   cluster_rows = FALSE,
                                   cluster_columns = FALSE,
                                   sortCol,
-                                  title,
+                                  extrems = NULL,
+                                  rownames.size = 12,
+                                  title = NULL,
+                                  color.levels = NULL,
+                                  values.label = NULL,
                                   filename = "heatmap.pdf",
                                   width = 10,
                                   height = 10,
@@ -737,11 +745,20 @@ TCGAvisualize_Heatmap <- function(data,
                                sortCol))
                 column_order <- order(df[,sortCol])
             }
-            ha <- HeatmapAnnotation(df = df,
-                                    col = col.colors)
+            if(is.null(col.colors)) {
+                ha <- HeatmapAnnotation(df = df)
+            } else {
+                ha <- HeatmapAnnotation(df = df,
+                                        col = col.colors)
+            }
         }
     }
     # STEP 2 Create heatmap
+    if(is.null(color.levels)) {
+        if (type == "expression") color.levels <-  c("green", "white", "red")
+        if (type == "methylation") color.levels <-  c("blue", "white", "red")
+    }
+
 
     # If we want to show differences between genes, it is good to make Z-score by samples
     # (force each sample to have zero mean and standard deviation=1).
@@ -750,41 +767,48 @@ TCGAvisualize_Heatmap <- function(data,
     if(scale == "row"){
         message("Calculating z-scores for the rows....")
         data <- t(scale(t(data)))
-        if (type == "expression") color <- colorRamp2(seq(-4,4,0.1), gplots::greenred(length(seq(-4,4,0.1))))
-        if (type == "methylation") color <- colorRamp2(seq(-4,4,0.1), matlab::jet.colors(length(seq(-4,4,0.1))))
+        all.na <- apply(data,1, function(x) all(is.na(x)))
+        data <- data[!all.na,]
     } else if(scale == "col"){
         message("Calculiating z-scores for the columns....")
         data <- scale(data)
-        if (type == "expression") color <- colorRamp2(seq(-4,4,0.1), gplots::greenred(length(seq(-4,4,0.1))))
-        if (type == "methylation") color <- colorRamp2(seq(-4,4,0.1), matlab::jet.colors(length(seq(-4,4,0.1))))
-    } else {
-        if (type == "expression") color <- gplots::greenred(200)
-        if (type == "methylation") color <- matlab::jet.colors(200)
     }
+
+    if(is.null(extrems)) {
+        if(min(data) < 0) {
+            extrems <- c(min(data), (max(data) + min(data))/2, max(data))
+        } else {
+            extrems <- c(0, max(data)/2, max(data))
+        }
+    }
+    if (type == "expression") color <- circlize::colorRamp2(extrems, color.levels)
+    if (type == "methylation") color <- circlize::colorRamp2(extrems, color.levels)
 
     # Creating plot title
-    if(missing(title)) {
-        if(type == "methylation") title <- "Methylation heatmap"
+    if(is.null(title)) {
+        if(type == "methylation") title <- "DNA methylation heatmap"
         if(type == "expression") title <- "Expression heatmap"
     }
-
     # Change label type
+    heatmap_legend_param <- list()
     if(heatmap.legend.color.bar == "continuous" && type == "methylation"){
-        heatmap_legend_param <- list(color_bar = "continuous", at = c(0,0.2,0.4,0.6,0.8, 1), legend_height = unit(3, "cm"), labels = c("0.0 (hypomethylated)",0.2,0.4,0.6,0.8,"1.0 (hypermethylated)"))
+        heatmap_legend_param <- c(list(color_bar = "continuous"),heatmap_legend_param)
+        if(!scale %in% c("row","col")) heatmap_legend_param <- list(color_bar = "continuous", at = c(0,0.2,0.4,0.6,0.8, 1), legend_height = unit(3, "cm"), labels = c("0.0 (hypomethylated)",0.2,0.4,0.6,0.8,"1.0 (hypermethylated)"))
     }
     if(heatmap.legend.color.bar == "continuous" && type == "expression"){
-        heatmap_legend_param <- list(color_bar = "continuous")
+        heatmap_legend_param <- c(list(color_bar = "continuous"),heatmap_legend_param)
     }
-
     # Change label reference
-    if(type == "methylation") type <- "Methylation level"
-    if(type == "expression") type <- "Expression"
-
+    if(is.null(values.label)){
+        if(type == "methylation") values.label <- "DNA methylation level"
+        if(type == "expression") values.label <- "Expression"
+    }
     if(!missing(sortCol) & heatmap.legend.color.bar == "continuous"){
-        heatmap  <- Heatmap(data, name = type,
+        heatmap  <- Heatmap(data, name = values.label,
                             top_annotation = ha,
                             bottom_annotation_height = unit(3, "cm"),
                             col = color,
+                            row_names_gp =  gpar(fontsize = rownames.size),
                             show_row_names = show_row_names,
                             cluster_rows = cluster_rows,
                             cluster_columns = cluster_columns,
@@ -793,21 +817,23 @@ TCGAvisualize_Heatmap <- function(data,
                             column_title = title,
                             heatmap_legend_param = heatmap_legend_param)
     } else if(missing(sortCol) & heatmap.legend.color.bar == "continuous"){
-        heatmap  <- Heatmap(data, name = type,
+        heatmap  <- Heatmap(data, name = values.label,
                             top_annotation = ha,
                             bottom_annotation_height = unit(3, "cm"),
                             col = color,
                             show_row_names = show_row_names,
+                            row_names_gp =  gpar(fontsize = rownames.size),
                             cluster_rows = cluster_rows,
                             cluster_columns = cluster_columns,
                             show_column_names = show_column_names,
                             column_title = title,
                             heatmap_legend_param = heatmap_legend_param)
     }  else if(!missing(sortCol)){
-        heatmap  <- Heatmap(data, name = type,
+        heatmap  <- Heatmap(data, name = values.label,
                             top_annotation = ha,
                             bottom_annotation_height = unit(3, "cm"),
                             col = color,
+                            row_names_gp =  gpar(fontsize = rownames.size),
                             show_row_names = show_row_names,
                             cluster_rows = cluster_rows,
                             cluster_columns = cluster_columns,
@@ -815,10 +841,11 @@ TCGAvisualize_Heatmap <- function(data,
                             column_order = column_order,
                             column_title = title)
     } else {
-        heatmap  <- Heatmap(data, name = type,
+        heatmap  <- Heatmap(data, name = values.label,
                             top_annotation = ha,
                             bottom_annotation_height = unit(3, "cm"),
                             col = color,
+                            row_names_gp =  gpar(fontsize = rownames.size),
                             show_row_names = show_row_names,
                             cluster_rows = cluster_rows,
                             cluster_columns = cluster_columns,
@@ -858,622 +885,6 @@ TCGAvisualize_Heatmap <- function(data,
 }
 
 
-#' @title Profile plot
-#' @description Displaty the association between cancer subtypes and any kind of clustering.
-#' @param data A data frame with the cluters and subytpe of cancers
-#' @param subtypeCol Name of the column with the subtype information
-#' @param groupCol Names of tre columns with the cluster information
-#' @param filename Name of the file to save the plot, can be pdf, png, svg etc..
-#' @param na.rm.groups Remove NA groups? Default = FALSE
-#' @param na.rm.subtypes Remove NA subtypes? Default = FALSE
-#' @param colors Vector of colors to be used in the bars
-#' @param plot.margin Plot margin for cluster distribution. This can control the size
-#' of the bar if the output is not aligned
-#' @param axis.title.size axis.title.size
-#' @param axis.textsize axis.textsize
-#' @param legend.size Size of the legend
-#' @param legend.title.size Size of the legend title
-#' @param geom.label.size Size of percentage in the left barplot
-#' @param geom.label.color Color of percentage in the left barplot
-#' @importFrom sjPlot sjp.stackfrq sjp.setTheme
-#' @importFrom cowplot ggdraw switch_axis_position plot_grid
-#' @importFrom data.table dcast
-#' @importFrom grDevices gray.colors
-#' @import gtable
-#' @export
-#' @examples
-#' while (!(is.null(dev.list()["RStudioGD"]))){dev.off()}
-#' cluster <- c(rep("cluster1",30),
-#'              rep("cluster2",30),
-#'              rep("cluster3",30))
-#' subtype <- rep(c(rep("subtype1",10),
-#'            rep("subtype2",10),
-#'            rep("subtype3",10)),3)
-#' df <- data.frame(cluster,subtype)
-#' TCGAvisualize_profilePlot(data = df, groupCol = "cluster", subtypeCol = "subtype",
-#'                           plot.margin=c(-4.2,-2.5,-0.0,2))
-#' while (!(is.null(dev.list()["RStudioGD"]))){dev.off()}
-#' cluster <- c(rep("cluster1",10),
-#'              rep("cluster2",20),
-#'              rep("cluster3",30),
-#'              rep("cluster4",40))
-#' subtype <- rep(c(rep("subtype1",5),
-#'            rep("subtype2",10),
-#'            rep("subtype3",10)),4)
-#' df <- data.frame(cluster,subtype)
-#' plot <- TCGAvisualize_profilePlot(data = df, groupCol = "cluster", subtypeCol = "subtype",
-#'                           plot.margin=c(-4.2,-2.5,-0.5,2))
-#' @return A plot
-TCGAvisualize_profilePlot <- function(data = NULL,
-                                      groupCol = NULL,
-                                      subtypeCol = NULL,
-                                      colors = NULL,
-                                      filename = NULL,
-                                      na.rm.groups = FALSE,
-                                      na.rm.subtypes= FALSE,
-                                      plot.margin=c(-2.5,-2.5,-0.5,2),
-                                      axis.title.size=1.5,
-                                      axis.textsize=1.3,
-                                      legend.size=1.5,
-                                      legend.title.size=1.5,
-                                      geom.label.size = 6.0,
-                                      geom.label.color = "black") {
-
-    sjp.setTheme(theme = "scatterw",
-                 axis.title.size = axis.title.size,
-                 axis.textsize = axis.textsize,
-                 legend.size = legend.size,
-                 legend.title.size = legend.title.size,
-                 geom.label.size = geom.label.size,
-                 geom.label.color = geom.label.color)
-
-    if (is.null(groupCol)) stop("Please provide the groupCol argument")
-    if (is.null(subtypeCol)) stop("Please provide the subtypeCol argument")
-    if (is.null(data)) stop("Please provide the data argument")
-
-    if(na.rm.groups){
-        data <- data[!is.na(data[,groupCol]),]
-        data <- data[which(data[,groupCol] != "NA"),]
-    }
-    if(na.rm.subtypes){
-        data <- data[!is.na(data[,subtypeCol]),]
-        data <- data[which(data[,subtypeCol] != "NA"),]
-    }
-
-    # use https://github.com/cttobin/ggthemr
-    # when it is in cran
-    if (is.null(colors)) colors <- c("#34495e",
-                                     "#3498db",
-                                     "#2ecc71",
-                                     "#f1c40f",
-                                     "#e74c3c",
-                                     "#9b59b6",
-                                     "#1abc9c",
-                                     "#f39c12",
-                                     "#d35400")
-
-    # The ideia is: we have a data frame like this:
-    #----------------------
-    # GROUP COL  SUBTYPE
-    #---------------------
-    # group 1     WT
-    # group 2     NC
-    # group 1     WT
-    # group 3     NC
-    #---------------------
-    # And we need
-    #-------------------
-    # Group 1 Group 2 Group 3
-    #   1       2       2
-    #   1       NA      NA
-    # ---------------------
-    # where 1 is WT and NC 2
-    df <- as.data.frame(data)
-    groups <- df[,groupCol]
-
-    df <- setDF(dcast(df, as.formula(paste0(subtypeCol, " ~ ", groupCol))))
-
-    var.labels <- unique(df[,1]) # get the cluster names
-    m <- max(apply(df[,-1],2,sum)) # get the max number of subtypes in the clusters
-
-    # create a data frame with all values
-    for(i in 2:ncol(df)){
-        x <- c()
-        for(j in 1:nrow(df)){
-            x <- c(x,rep(j,(df[j,i])))
-        }
-        missing <- m-length(x)
-        x <- c(x,rep(NA,missing))
-        if(i == 2) data <- x
-        if(i > 2) data <- cbind(data,x)
-    }
-    colnames(data) <- colnames(df)[-1]
-
-    # create a column for all values
-    all <- as.numeric(unlist(data))
-    idx <- length(all) - nrow(data)
-    for( i in 1:idx) {
-        data <- rbind(data, rep(NA,ncol(data)))
-    }
-
-    data <- cbind(all,data)
-    colnames(data)[1] <- subtypeCol
-    data <- as.data.frame(data)
-
-    ngroups <- length(unique(groups))
-    nsbutype <- length(unique(all))
-
-    if(NA %in% unique(all)) nsbutype <- nsbutype - 1
-    max <- length(na.omit(data[,1]))
-    message(paste0("Number of subtypes: ", nsbutype))
-    message(paste0("Number of ngroups: ", ngroups))
-
-    for(i in 1:ncol(data)){
-        if(i == 1) {
-            width = rep(c(0.5),nsbutype)
-        }  else {
-            width <- c(width, rep((ngroups/max) * length(na.omit(data[,i])),nsbutype))
-        }
-    }
-    var.labels <- as.character(var.labels)
-    var.labels[which(is.na(var.labels)==TRUE)] <- "NA"
-    # Create the horizontal barplot
-    p <- .mysjp.stackfrq(data,
-                         legendTitle = subtypeCol,
-                         #axisTitle.x = groupCol,
-                         axisTitle.x = "",
-                         #sort.frq = "last.desc",
-                         expand.grid = FALSE,
-                         geom.size = width,
-                         legendLabels = as.character(var.labels),
-                         jitterValueLabels = TRUE,
-                         #showSeparatorLine = TRUE,
-                         showValueLabels = FALSE,
-                         geom.colors = colors[1:length(var.labels)])$plot
-    p <-  ggdraw(switch_axis_position(p , axis = 'y'))
-
-    j <- 1
-    groups <- as.data.frame(groups)
-    groups$x <- 1
-    for (i in sort(unique(groups[,1]))){
-        idx <- which(groups[,1] == i)
-        groups[idx,"x"] <- as.numeric(j)
-        j <- j + 1
-    }
-
-    # Create the vertical barplot with the percentage of element in each group
-    p2 <- sjp.stackfrq(groups[,2],
-                       #legendTitle = subtypeCol,
-                       axis.titles = c("","Cluster distribution"),
-                       #sort.frq = "first.asc",
-                       #expand.grid = TRUE,
-                       legend.labels = as.character(unique(groups[,2])),
-                       coord.flip = FALSE,
-                       show.legend = FALSE,
-                       #showSeparatorLine = FALSE,
-                       #showValueLabels = FALSE,
-                       #geom.size = c(0.1,0.2,0.4,0.3),
-                       geom.colors = gray.colors(length(unique(groups[,2])),
-                                                 start = 0.6,
-                                                 end = 0.9,
-                                                 gamma = 2.2,
-                                                 alpha = 0.1))$plot
-
-    p2 <- p2 +
-        theme(#legend.position="none",
-            #plot.margin=unit(c(-3.0,4.5,-0.75,5.5), "cm"),
-            #plot.margin=unit(c(-3.3,-2.5,-1.0,2), "cm"),
-            plot.margin=unit(plot.margin, "cm"),
-            axis.line=element_blank(),
-            axis.text.x=element_blank(),
-            #axis.text.y=element_blank(),
-            axis.ticks=element_blank(),
-            #axis.title.x=element_blank(),
-            #axis.title.y=element_blank(),
-            #panel.background=element_blank(),
-            #panel.border=element_blank(),
-            #panel.grid.major=element_blank(),
-            #panel.grid.minor=element_blank(),
-            plot.background=element_blank())
-
-    # put the plots together
-    p <-  plot_grid(p2,
-                    p,
-                    ncol = 2,
-                    scale = c(0.5,1),
-                    rel_heights = c(2,8),
-                    rel_widths = c(0.6,2))
-    if(!is.null(filename)) {
-        ggsave(p, filename = filename, width = 20, height = 10, dpi = 600)
-    } else {
-        plot(p)
-    }
-}
-
-#' @import magrittr
-#' @keywords internal
-#' @import sjmisc
-.mysjp.stackfrq <- function(items,
-                            legendLabels = NULL,
-                            sort.frq = NULL,
-                            weightBy = NULL,
-                            weightByTitleString = NULL,
-                            hideLegend = FALSE,
-                            title = NULL,
-                            legendTitle = NULL,
-                            includeN = TRUE,
-                            axisLabels.y = NULL,
-                            breakTitleAt = 50,
-                            breakLabelsAt = 30,
-                            breakLegendTitleAt = 30,
-                            breakLegendLabelsAt = 28,
-                            gridBreaksAt = 0.2,
-                            expand.grid = FALSE,
-                            geom.size = 0.5,
-                            geom.colors = "Blues",
-                            axisTitle.x = NULL,
-                            axisTitle.y = NULL,
-                            showValueLabels = TRUE,
-                            labelDigits = 1,
-                            showPercentageAxis = TRUE,
-                            jitterValueLabels = FALSE,
-                            showItemLabels = TRUE,
-                            showSeparatorLine = FALSE,
-                            separatorLineColor = "grey80",
-                            separatorLineSize = 0.3,
-                            coord.flip = TRUE,
-                            printPlot = TRUE) {
-    # --------------------------------------------------------
-    # check param. if we have a single vector instead of
-    # a data frame with several items, convert vector to data frame
-    # --------------------------------------------------------
-    if (!is.data.frame(items) && !is.matrix(items)) items <- as.data.frame(items)
-    # --------------------------------------------------------
-    # check sorting
-    # --------------------------------------------------------
-    if (!is.null(sort.frq)) {
-        if (sort.frq == "first.asc") {
-            sort.frq  <- "first"
-            reverseOrder <- FALSE
-        } else if (sort.frq == "first.desc") {
-            sort.frq  <- "first"
-            reverseOrder <- TRUE
-        } else if (sort.frq == "last.asc") {
-            sort.frq  <- "last"
-            reverseOrder <- TRUE
-        } else if (sort.frq == "last.desc") {
-            sort.frq  <- "last"
-            reverseOrder <- FALSE
-        } else {
-            sort.frq  <- NULL
-            reverseOrder <- FALSE
-        }
-    } else {
-        reverseOrder <- FALSE
-    }
-    # --------------------------------------------------------
-    # try to automatically set labels is not passed as parameter
-    # --------------------------------------------------------
-    if (is.null(legendLabels)) legendLabels <- sjmisc::get_labels(items[[1]],
-                                                                  attr.only = F,
-                                                                  include.values = NULL,
-                                                                  include.non.labelled = T)
-    if (is.null(axisLabels.y)) {
-        axisLabels.y <- c()
-        # if yes, iterate each variable
-        for (i in 1:ncol(items)) {
-            # retrieve variable name attribute
-            vn <- sjmisc::get_label(items[[i]], def.value = colnames(items)[i])
-            # if variable has attribute, add to variableLabel list
-            if (!is.null(vn)) {
-                axisLabels.y <- c(axisLabels.y, vn)
-            } else {
-                # else break out of loop
-                axisLabels.y <- NULL
-                break
-            }
-        }
-    }
-    # --------------------------------------------------------
-    # If axisLabels.y were not defined, simply use column names
-    # --------------------------------------------------------
-    if (is.null(axisLabels.y)) axisLabels.y <- colnames(items)
-    # --------------------------------------------------------
-    # unlist/ unname axis labels
-    # --------------------------------------------------------
-    if (!is.null(axisLabels.y)) {
-        # unlist labels, if necessary, so we have a simple
-        # character vector
-        if (is.list(axisLabels.y)) axisLabels.y <- unlistlabels(axisLabels.y)
-        # unname labels, if necessary, so we have a simple
-        # character vector
-        if (!is.null(names(axisLabels.y))) axisLabels.y <- as.vector(axisLabels.y)
-    }
-    # --------------------------------------------------------
-    # unlist/ unname axis labels
-    # --------------------------------------------------------
-    if (!is.null(legendLabels)) {
-        # unlist labels, if necessary, so we have a simple
-        # character vector
-        if (is.list(legendLabels)) legendLabels <- unlistlabels(legendLabels)
-        # unname labels, if necessary, so we have a simple
-        # character vector
-        if (!is.null(names(legendLabels))) legendLabels <- as.vector(legendLabels)
-    }
-    if (is.null(legendLabels)) {
-        # if we have no legend labels, we iterate all data frame's
-        # columns to find all unique items of the data frame.
-        # In case one item has missing categories, this may be
-        # "compensated" by looking at all items, so we have the
-        # actual values of all items.
-        legendLabels <- as.character(sort(unique(unlist(
-            apply(items, 2, function(x) unique(stats::na.omit(x)))))))
-    }
-    # --------------------------------------------------------
-    # Check whether N of each item should be included into
-    # axis labels
-    # --------------------------------------------------------
-    if (includeN && !is.null(axisLabels.y)) {
-        for (i in 1:length(axisLabels.y)) {
-            axisLabels.y[i] <- paste(axisLabels.y[i],
-                                     sprintf(" (n=%i)", length(stats::na.omit(items[[i]]))),
-                                     sep = "")
-        }
-    }
-    # -----------------------------------------------
-    # if we have legend labels, we know the exact
-    # amount of groups
-    # -----------------------------------------------
-    countlen <- length(legendLabels)
-    # -----------------------------------------------
-    # create cross table for stats, summary etc.
-    # and weight variable. do this for each item that was
-    # passed as parameter
-    #---------------------------------------------------
-    mydat <- c()
-    # ----------------------------
-    # determine minimum value. if 0, add one, because
-    # vector indexing starts with 1
-    # ----------------------------
-    if (any(apply(items, c(1, 2), is.factor)) || any(apply(items, c(1, 2), is.character))) {
-        diff <- ifelse(min(apply(items, c(1, 2), as.numeric), na.rm = TRUE) == 0, 1, 0)
-    } else {
-        diff <- ifelse(min(items, na.rm = TRUE) == 0, 1, 0)
-    }
-    # iterate item-list
-    for (i in 1:ncol(items)) {
-        # get each single items
-        variable <- items[[i]]
-        # -----------------------------------------------
-        # create proportional table so we have the percentage
-        # values that should be used as y-value for the bar charts
-        # We now have a data frame with categories, group-association
-        # and percentage values (i.e. each cell as separate row in the
-        # data frame)
-        # -----------------------------------------------
-        # check whether counts should be weighted or not
-        if (is.null(weightBy)) {
-            df <- as.data.frame(prop.table(table(variable)))
-        } else {
-            df <- as.data.frame(prop.table(round(stats::xtabs(weightBy ~ variable), 0)))
-        }
-
-        grp <- NULL
-        ypos <- NULL
-
-        # give columns names
-        names(df) <- c("var", "prc")
-        # need to be numeric, so percentage values (see below) are
-        # correctly assigned, i.e. missing categories are considered
-        df$var <- sjmisc::to_value(df$var, keep.labels = FALSE) + diff # if categories start with zero, fix this here
-        # Create a vector of zeros
-        prc <- rep(0, countlen)
-        # Replace the values in prc for those indices which equal df$var
-        prc[df$var] <- df$prc
-        # create new data frame. We now have a data frame with all
-        # variable categories abd their related percentages, including
-        # zero counts, but no(!) missings!
-        mydf <- data.frame(grp = i,
-                           cat = 1:countlen,
-                           prc)
-        # now, append data frames
-        mydat <- data.frame(rbind(mydat, mydf))
-    }
-    # ----------------------------
-    # make sure group and count variable
-    # are factor values
-    # ----------------------------
-    mydat$grp <- as.factor(mydat$grp)
-    mydat$cat <- as.factor(mydat$cat)
-    # add half of Percentage values as new y-position for stacked bars
-    mydat <- mydat %>%
-        dplyr::group_by(grp) %>%
-        dplyr::mutate(ypos = cumsum(prc) - 0.5 * prc) %>%
-        dplyr::arrange(grp)
-    # --------------------------------------------------------
-    # Caculate vertical adjustment to avoid overlapping labels
-    # --------------------------------------------------------
-    jvert <- rep(c(1.1, -0.1), length.out = length(unique(mydat$cat)))
-    jvert <- rep(jvert, length.out = nrow(mydat))
-    # --------------------------------------------------------
-    # Prepare and trim legend labels to appropriate size
-    # --------------------------------------------------------
-    # wrap legend text lines
-    legendLabels <- sjmisc::word_wrap(legendLabels, breakLegendLabelsAt)
-    # check whether we have a title for the legend
-    # if yes, wrap legend title line
-    if (!is.null(legendTitle)) legendTitle <- sjmisc::word_wrap(legendTitle, breakLegendTitleAt)
-    # check length of diagram title and split longer string at into new lines
-    # every 50 chars
-    if (!is.null(title)) {
-        # if we have weighted values, say that in diagram's title
-        if (!is.null(weightByTitleString)) title <- paste0(title, weightByTitleString)
-        title <- sjmisc::word_wrap(title, breakTitleAt)
-    }
-    # check length of x-axis-labels and split longer strings at into new lines
-    # every 10 chars, so labels don't overlap
-    if (!is.null(axisLabels.y)) axisLabels.y <- sjmisc::word_wrap(axisLabels.y, breakLabelsAt)
-    # ----------------------------
-    # Check if ordering was requested
-    # ----------------------------
-    if (!is.null(sort.frq)) {
-        # order by first cat
-        if (sort.frq == "first") {
-            facord <- order(mydat$prc[which(mydat$cat == 1)])
-        } else {
-            # order by last cat
-            facord <- order(mydat$prc[which(mydat$cat == countlen)])
-        }
-        # create dummy vectors from 1 to itemlength
-        dummy1 <- dummy2 <- c(1:length(facord))
-        # facords holds the ordered item indices! we now need to
-        # change the original item-index with its ordered position index.
-        # example:
-        # we have 4 items, and they may be ordered like this:
-        # 1 3 4 2
-        # so the first item is the one with the lowest count , item 3 is on second postion,
-        # item 4 is on third position and item 2 is the last item (with highest count)
-        # we now need their order as subsequent vector: 1 4 2 3
-        # (i.e. item 1 is on first pos, item 2 is on fourth pos, item 3 is on
-        # second pos and item 4 is on third pos in order)
-        if (reverseOrder) {
-            dummy2[rev(facord)] <- dummy1
-        } else {
-            dummy2[facord] <- dummy1
-        }
-        # now we have the order of either lowest to highest counts of first
-        # or last category of "items". We now need to repeat these values as
-        # often as we have answer categories
-        orderedrow <- unlist(tapply(dummy2, 1:length(dummy2), function(x) rep(x, countlen)))
-        # replace old grp-order by new order
-        mydat$grp <- as.factor(orderedrow)
-        # reorder axis labels as well
-        axisLabels.y <- axisLabels.y[order(dummy2)]
-    }
-    # --------------------------------------------------------
-    # check if category-oder on x-axis should be reversed
-    # change category label order then
-    # --------------------------------------------------------
-    if (reverseOrder && is.null(sort.frq)) axisLabels.y <- rev(axisLabels.y)
-    # --------------------------------------------------------
-    # define vertical position for labels
-    # --------------------------------------------------------
-    if (coord.flip) {
-        # if we flip coordinates, we have to use other parameters
-        # than for the default layout
-        vert <- 0.35
-    } else {
-        vert <- waiver()
-    }
-    # --------------------------------------------------------
-    # set diagram margins
-    # --------------------------------------------------------
-    if (expand.grid) {
-        expgrid <- waiver()
-    } else {
-        expgrid <- c(0, 0)
-    }
-    # --------------------------------------------------------
-    # Set value labels and label digits
-    # --------------------------------------------------------
-    mydat$labelDigits <- labelDigits
-    if (showValueLabels) {
-        if (jitterValueLabels) {
-            ggvaluelabels <-  geom_text(aes(y = ypos, label = sprintf("%.*f%%", labelDigits, 100 * prc)),
-                                        vjust = jvert)
-        } else {
-            ggvaluelabels <-  geom_text(aes(y = ypos, label = sprintf("%.*f%%", labelDigits, 100 * prc)),
-                                        vjust = vert)
-        }
-    } else {
-        ggvaluelabels <-  geom_text(label = "")
-    }
-    # --------------------------------------------------------
-    # Set up grid breaks
-    # --------------------------------------------------------
-    if (is.null(gridBreaksAt)) {
-        gridbreaks <- waiver()
-    } else {
-        gridbreaks <- c(seq(0, 1, by = gridBreaksAt))
-    }
-    # --------------------------------------------------------
-    # check if category-oder on x-axis should be reversed
-    # change x axis order then
-    # --------------------------------------------------------
-    #geom.size <- c(1,geom.size)
-    l <- length(unique(mydat$cat))
-    w <- geom.size[seq(l +1, length(geom.size),l)]
-    #w <- c(1.5,w)
-    pos <- 0.5 * (cumsum(w) + cumsum(c(0, w[-length(w)])))
-    pos <- pos + 1.4
-    pos <- c(1,pos)
-    mydat$grp <- as.numeric(sort(rep(pos,l)))
-
-
-    if (reverseOrder && is.null(sort.frq)) {
-        baseplot <- ggplot(mydat, aes(x = rev(grp), y = prc, fill = cat))
-    } else {
-        baseplot <- ggplot(mydat, aes(x = grp, y = prc, fill = cat))
-    }
-    baseplot <- baseplot +
-        # plot bar chart
-        geom_bar(aes(x = grp, y = prc, fill = cat),stat = "identity",
-                 position = "stack", width = 0.98 *geom.size, colour="black")
-
-    # --------------------------------------------------------
-    # check whether bars should be visually separated by an
-    # additional separator line
-    # --------------------------------------------------------
-    if (showSeparatorLine) {
-        baseplot <- baseplot +
-            geom_vline(xintercept = c(seq(1.5, length(items), by = 1)),
-                       size = separatorLineSize,
-                       colour = separatorLineColor)
-    }
-    # -----------------
-    # show/hide percentage values on x axis
-    # ----------------------------
-    if (!showPercentageAxis) percent <- NULL
-    baseplot <- baseplot +
-        # show absolute and percentage value of each bar.
-        ggvaluelabels +
-        # no additional labels for the x- and y-axis, only diagram title
-        labs(title = title, x = axisTitle.x, y = axisTitle.y, fill = legendTitle) +
-        # print value labels to the x-axis.
-        # If parameter "axisLabels.y" is NULL, the category numbers (1 to ...)
-        # appear on the x-axis
-        scale_x_continuous(labels = axisLabels.y, breaks = pos) +
-        # set Y-axis, depending on the calculated upper y-range.
-        # It either corresponds to the maximum amount of cases in the data set
-        # (length of var) or to the highest count of var's categories.
-        scale_y_continuous(breaks = gridbreaks,
-                           limits = c(0, 1),
-                           expand = expgrid,
-                           labels = percent)
-    # check whether coordinates should be flipped, i.e.
-    # swap x and y axis
-    if (coord.flip) baseplot <- baseplot + coord_flip()
-    # ---------------------------------------------------------
-    # set geom colors
-    # ---------------------------------------------------------
-    baseplot <- sjPlot:::sj.setGeomColors(baseplot,
-                                          geom.colors,
-                                          length(legendLabels),
-                                          ifelse(isTRUE(hideLegend), FALSE, TRUE),
-                                          legendLabels)
-    # ---------------------------------------------------------
-    # Check whether ggplot object should be returned or plotted
-    # ---------------------------------------------------------
-    if (printPlot) plot(baseplot)
-    # -------------------------------------
-    # return results
-    # -------------------------------------
-    invisible(structure(class = "sjpstackfrq",
-                        list(plot = baseplot,
-                             df = mydat)))
-}
-
-
 # unlist labels
 # Help function that unlists a list into a vector
 unlistlabels <- function(lab) {
@@ -1490,25 +901,32 @@ unlistlabels <- function(lab) {
 #' @param filename name of the pdf
 #' @param color named vector for the plot
 #' @param height pdf height
+#' @param width pdf width
 #' @param rm.empty.columns If there is no alteration in that sample, whether remove it on the oncoprint
 #' @param show.row.barplot  Show barplot annotation on rows?
 #' @param show.column.names Show column names? Default: FALSE
 #' @param rows.font.size Size of the fonts
+#' @param column.names.size Size of the fonts of the columns names
 #' @param dist.col distance between columns in the plot
 #' @param dist.row distance between rows in the plot
 #' @param label.font.size Size of the fonts
-#' @param row.order Order the genes (rows). Genes with more mutations will be in the first rows
+#' @param row.order Order the genes (rows) Default:FALSE. Genes with more mutations will be in the first rows
 #' @param annotation Matrix or data frame with the annotation.
 #' Should have a column bcr_patient_barcode with the same ID of the mutation object
 #' @param annotation.position Position of the annotation "bottom" or "top"
 #' @param label.title Title of the label
 #' @param annotation.legend.side Position of the annotation legend
 #' @param heatmap.legend.side Position of the heatmap legend
+#' @param information Which column to use as informastion from MAF.
+#' Options: 1) "Variant_Classification" (The information will be "Frame_Shift_Del", "Frame_Shift_Ins",
+#'         "In_Frame_Del", "In_Frame_Ins", "Missense_Mutation",  "Nonsense_Mutation",
+#'              "Nonstop_Mutation",  "RNA",  "Silent" ,  "Splice_Site",  "Targeted_Region",  "Translation_Start_Site")
+#' 2) "Variant_Type" (The information will be INS,DEL,SNP)
 #' @importFrom ComplexHeatmap oncoPrint draw HeatmapAnnotation
 #' @importFrom grid gpar grid.rect
 #' @importFrom data.table dcast setDT setDF :=
 #' @examples
-#' mut <- GDCquery_Maf(tumor = "ACC")
+#' mut <- GDCquery_Maf(tumor = "ACC", pipelines = "mutect")
 #' TCGAvisualize_oncoprint(mut = mut, genes = mut$Hugo_Symbol[1:10], rm.empty.columns = TRUE)
 #' TCGAvisualize_oncoprint(mut = mut, genes = mut$Hugo_Symbol[1:10],
 #'                  filename = "onco.pdf",
@@ -1533,14 +951,17 @@ TCGAvisualize_oncoprint <- function (mut,
                                      annotation.position = "bottom",
                                      annotation,
                                      height,
+                                     width = 10,
                                      rm.empty.columns = FALSE,
                                      show.column.names = FALSE,
                                      show.row.barplot = TRUE,
                                      label.title = "Mutation",
+                                     column.names.size = 8,
                                      label.font.size = 16,
                                      rows.font.size = 16,
                                      dist.col = 0.5,
                                      dist.row = 0.5,
+                                     information = "Variant_Type",
                                      row.order = FALSE,
                                      heatmap.legend.side = "bottom",
                                      annotation.legend.side = "bottom"){
@@ -1549,14 +970,17 @@ TCGAvisualize_oncoprint <- function (mut,
     if(missing(mut))   stop("Missing mut argument")
     mut <- setDT(mut)
     mut$value <- 1
+    if(rm.empty.columns == FALSE) all.samples <- unique(mut$Tumor_Sample_Barcode)
 
     mut$Hugo_Symbol <- as.character(mut$Hugo_Symbol)
     if(!missing(genes) & !is.null(genes)) mut <- subset(mut, mut$Hugo_Symbol %in% genes)
 
     if(!rm.empty.columns){
-        mat <- dcast(mut, Tumor_Sample_Barcode + Hugo_Symbol ~ Variant_Type,value.var = "value",fill = 0,drop = FALSE)
+        formula <- paste0("Tumor_Sample_Barcode + Hugo_Symbol ~ ", information)
+        suppressMessages({mat <- dcast(mut, as.formula(formula),value.var = "value",fill = 0,drop = FALSE)})
     } else {
-        mat <- dcast(mut, Tumor_Sample_Barcode + Hugo_Symbol ~ Variant_Type,value.var = "value",fill = 0,drop = TRUE)
+        formula <- paste0("Tumor_Sample_Barcode + Hugo_Symbol ~ ", information)
+        suppressMessages({mat <- dcast(mut, as.formula(formula),value.var = "value",fill = 0,drop = TRUE)})
     }
 
     # mutation in the file
@@ -1584,25 +1008,26 @@ TCGAvisualize_oncoprint <- function (mut,
     rownames(mat) <- mat[,1]
     mat <- mat[,-1]
 
-    #rownames(mat) <-  substr(rownames(mat),1,12)
-
-    alter_fun = list(
-        background = function(x, y, w, h) {
-            grid.rect(x, y, w-unit(dist.col, "mm"), h-unit(dist.row, "mm"), gp = gpar(fill = color["background"], col = NA))
-        },
-        INS = function(x, y, w, h) {
-            grid.rect(x, y, w-unit(dist.col, "mm"), h-unit(dist.row, "mm"), gp = gpar(fill = color["INS"], col = NA))
-        },
-        DEL = function(x, y, w, h) {
-            grid.rect(x, y, w-unit(dist.col, "mm"), h-unit(dist.row, "mm"), gp = gpar(fill = color["DEL"], col = NA))
-        },
-        SNP = function(x, y, w, h) {
-            grid.rect(x, y, w-unit(dist.col, "mm"), h*0.33, gp = gpar(fill = color["SNP"], col = NA))
-        },
-        DNP = function(x, y, w, h) {
-            grid.rect(x, y, w-unit(dist.col, "mm"), h*0.45, gp = gpar(fill = color["DNP"], col = NA))
+    if(rm.empty.columns == FALSE) {
+        aux <- data.frame(row.names = all.samples[!all.samples %in% rownames(mat)])
+        if(nrow(aux) > 0) {
+            aux[,colnames(mat)] <- ""
+            mat <- rbind(mat,aux)
         }
-    )
+    }
+
+
+    alter_fun = function(x, y, w, h, v) {
+        n = sum(v)
+        h = h*0.9
+        # use `names(which(v))` to correctly map between `v` and `col`
+        if(n) {
+            grid.rect(x, y - h*0.5 + 1:n/n*h,  w-unit(dist.col, "mm"), 1/n*h,
+                      gp = gpar(fill = color[names(which(v))], col = NA), just = "top")
+        } else {
+            grid.rect(x, y, w-unit(dist.col, "mm"), h-unit(dist.row, "mm"), gp = gpar(fill = color["background"], col = NA))
+        }
+    }
 
     # get only the colors to the mutations
     # otherwise it gives errors
@@ -1617,19 +1042,19 @@ TCGAvisualize_oncoprint <- function (mut,
             color <- c(color[mutation.type],"background"= "#CCCCCC")
         }
     }
-    alt = intersect(names(alter_fun), c("background",as.character(mutation.type)))
-    alter_fun <- alter_fun[alt]
-
     # header are samples, rows genes
     mat <- t(mat)
 
     if(!missing(height)) height <- length(genes)/2
-    if(!missing(filename)) pdf(filename,width = 20,height = height)
+    if(!missing(filename)) pdf(filename,width = width,height = height)
 
     if(missing(annotation)) annotation <- NULL
     if(!is.null(annotation)){
+        if(!"bcr_patient_barcode" %in% colnames(annotation))
+            stop("bcr_patient_barcode column should be in the annotation")
         idx <- match(substr(colnames(mat),1,12),annotation$bcr_patient_barcode)
-
+        if(all(is.na(idx)))
+            stop(" We couldn't match the columns names with the bcr_patient_barcode column in the annotation object")
         annotation <- annotation[idx,]
 
         annotation$bcr_patient_barcode <- NULL
@@ -1643,9 +1068,9 @@ TCGAvisualize_oncoprint <- function (mut,
         get.color <- function(df,col){
             idx <- which(colnames(df) == col)
             start <- 1
-            if(idx != 1) start <- length(unique(unlist(c(df[,1:(idx-1)])))) + 1
-            end <- start + length(unique(df[,col])) -1
-            diff.colors <- c("dimgray","thistle","deeppink3","magenta4","lightsteelblue1","black",
+            if(idx != 1) start <- length(na.omit(unique(unlist(c(df[,1:(idx-1)]))))) + 1
+            end <- start + length(na.omit(unique(df[,col]))) -1
+            diff.colors <- c("purple","thistle","deeppink3","magenta4","lightsteelblue1","black",
                              "chartreuse","lightgreen","maroon4","darkslategray",
                              "lightyellow3","darkslateblue","firebrick1","aquamarine",
                              "dodgerblue4","bisque4","moccasin","indianred1",
@@ -1660,7 +1085,7 @@ TCGAvisualize_oncoprint <- function (mut,
             #print(idx/n.col)
             ret <- get.color(annotation,x)
             #ret <- rainbow(length(unique(annotation[,x])),start = idx/n.col,alpha=0.5)
-            names(ret) <- as.character(unique(annotation[,x]))
+            names(ret) <- as.character(na.omit(unique(annotation[,x])))
             return(ret)
         })
         names(col.annot) <-  colnames(annotation)
@@ -1688,6 +1113,7 @@ TCGAvisualize_oncoprint <- function (mut,
                        show_row_barplot = show.row.barplot,
                        column_order = NULL, # Do not sort the columns
                        alter_fun = alter_fun, col = color,
+                       column_names_gp = gpar(fontsize = column.names.size),
                        row_names_gp = gpar(fontsize = rows.font.size),  # set size for row names
                        pct_gp = gpar(fontsize = rows.font.size), # set size for percentage labels
                        axis_gp = gpar(fontsize = rows.font.size),# size of axis
@@ -1707,6 +1133,7 @@ TCGAvisualize_oncoprint <- function (mut,
         p <- oncoPrint(mat, get_type = function(x) strsplit(x, ";")[[1]],
                        row_order = NULL,
                        remove_empty_columns = FALSE,
+                       column_names_gp = gpar(fontsize = column.names.size),
                        show_row_barplot = show.row.barplot,
                        show_column_names = show.column.names,
                        column_order = NULL, # Do not sort the columns
@@ -1731,6 +1158,7 @@ TCGAvisualize_oncoprint <- function (mut,
         p <- oncoPrint(mat, get_type = function(x) strsplit(x, ";")[[1]],
                        row_order = NULL,
                        remove_empty_columns = FALSE,
+                       column_names_gp = gpar(fontsize = column.names.size),
                        show_column_names = show.column.names,
                        show_row_barplot = show.row.barplot,
                        column_order = NULL, # Do not sort the columns
@@ -1757,6 +1185,7 @@ TCGAvisualize_oncoprint <- function (mut,
                        show_row_barplot = show.row.barplot,
                        column_order = NULL, # Do not sort the columns
                        alter_fun = alter_fun, col = color,
+                       column_names_gp = gpar(fontsize = column.names.size),
                        row_names_gp = gpar(fontsize = rows.font.size),  # set size for row names
                        pct_gp = gpar(fontsize = rows.font.size), # set size for percentage labels
                        axis_gp = gpar(fontsize = rows.font.size),# size of axis
@@ -1775,6 +1204,7 @@ TCGAvisualize_oncoprint <- function (mut,
 
         p <- oncoPrint(mat, get_type = function(x) strsplit(x, ";")[[1]],
                        remove_empty_columns = FALSE,
+                       column_names_gp = gpar(fontsize = column.names.size),
                        show_row_barplot = show.row.barplot,
                        show_column_names = show.column.names,
                        column_order = NULL, # Do not sort the columns
@@ -1802,6 +1232,7 @@ TCGAvisualize_oncoprint <- function (mut,
                        show_row_barplot = show.row.barplot,
                        column_order = NULL, # Do not sort the columns
                        alter_fun = alter_fun, col = color,
+                       column_names_gp = gpar(fontsize = column.names.size),
                        row_names_gp = gpar(fontsize = rows.font.size),  # set size for row names
                        pct_gp = gpar(fontsize = rows.font.size), # set size for percentage labels
                        axis_gp = gpar(fontsize = rows.font.size),# size of axis
@@ -1819,7 +1250,10 @@ TCGAvisualize_oncoprint <- function (mut,
         )
     }
 
-    if(!missing(filename)) dev.off()
-
     draw(p, heatmap_legend_side = heatmap.legend.side, annotation_legend_side = annotation.legend.side)
+    if(!missing(filename)) {
+        dev.off()
+        message(paste0("File saved as: ", filename ))
+    }
+
 }

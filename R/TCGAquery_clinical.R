@@ -100,10 +100,6 @@ TCGAquery_MatchedCoupledSampleTypes <- function(barcode,typesample){
 #' @param clinical_patient_data clinical_patient_data
 #' @keywords internal
 #' @return stage_BRCA
-# @examples
-# # clin <- TCGAquery_clinic("BRCA","clinical_patient")
-# clin <- clinBRCA
-# stage_BRCA(c("TCGA-3C-AALK","TCGA-A2-A04Q","TCGA-A4-A04Q"),"stage_IX",clin)
 stage_BRCA <- function(barcode, stage, clinical_patient_data){
     table.stages <- c("Stage I$|Stage IA$|Stage IB$", "Stage I$", "Stage IA$",
                       "Stage IB$", "Stage II$|Stage IIA$|Stage IIB$",
@@ -115,13 +111,12 @@ stage_BRCA <- function(barcode, stage, clinical_patient_data){
                              "stage_IIX", "stage_IIA", "stage_IIB",
                              "stage_IIIX","stage_IIIA", "stage_IIIB",
                              "stage_IIIC", "stage_IV")
-
+    print(is.element(stage, names(table.stages)))
     if (is.element(stage, names(table.stages))) {
         clinical_patient_data <- as.data.frame(clinical_patient_data)
-        print(table.stages[stage])
         stage.i <- clinical_patient_data[
             grep(table.stages[stage],
-                 clinical_patient_data$pathologic_stage), ]
+                 clinical_patient_data$stage_event_pathologic_stage), ]
         stage.i <- stage.i[,"bcr_patient_barcode"]
         samples <- substr(barcode, 1, 12)
         barcode <- intersect(samples,stage.i)
@@ -139,16 +134,12 @@ stage_BRCA <- function(barcode, stage, clinical_patient_data){
 #' @param clinical_patient_data clinical_patient_data
 #' @keywords internal
 #' @return stage_BRCA
-# @examples
-# # clin <- TCGAquery_clinic("BRCA","clinical_patient")
-# clin <- clinBRCA
-# gender_BRCA (c("TCGA-3C-AALK","TCGA-A2-A04Q","TCGA-A4-A04Q"),"FEMALE",clin)
 gender_BRCA <- function(barcode, gender, clinical_patient_data){
 
-    if (is.element(gender,c("MALE", "FEMALE"))) {
+    if (is.element(tolower(gender),c("male", "female"))) {
         clinical_patient_data <- as.data.frame(clinical_patient_data)
         s.gender <- as.data.frame(clinical_patient_data)[
-            grep(paste0("^", gender,"$"), clinical_patient_data$gender),
+            grep(paste0("^", gender,"$"), clinical_patient_data$gender,ignore.case = TRUE),
             ][,"bcr_patient_barcode"]
         samples <- substr(barcode, 1, 12)
         #find common patients between FEMALE and barcode data
@@ -168,11 +159,6 @@ gender_BRCA <- function(barcode, gender, clinical_patient_data){
 #' @param clinical_patient_data clinical_patient_data
 #' @keywords internal
 #' @return ER_status_BRCA
-# @examples
-# # clin <- TCGAquery_clinic("BRCA","clinical_patient")
-# clin <- clinBRCA
-# ER_status_BRCA(c("TCGA-3C-AALK","TCGA-A2-A04Q","TCGA-A4-A04Q"),
-# "Positive",clin)
 ER_status_BRCA <- function(barcode,ER, clinical_patient_data){
     ## ER should be "Positive" or "Negative"
     # consider only barcode and ER status
@@ -199,11 +185,6 @@ ER_status_BRCA <- function(barcode,ER, clinical_patient_data){
 #' @param clinical_patient_data clinical_patient_data
 #' @keywords internal
 #' @return PR_status_BRCA
-# @examples
-# # clin <- TCGAquery_clinic("BRCA","clinical_patient")
-# clin <- clinBRCA
-# PR_status_BRCA(c("TCGA-3C-AALK","TCGA-A2-A04Q","TCGA-A4-A04Q"),
-# "Positive",clin)
 PR_status_BRCA  <- function(barcode,PR, clinical_patient_data){
     ## PR should be "Positive" or "Negative"
 
@@ -211,7 +192,7 @@ PR_status_BRCA  <- function(barcode,PR, clinical_patient_data){
         #for breast cancer
         status <- as.data.frame(clinical_patient_data)[
             grep(paste0("^", PR, "$"),
-                 clinical_patient_data$pr_status_by_ihc), ][,"bcr_patient_barcode"]
+                 clinical_patient_data$breast_carcinoma_progesterone_receptor_status), ][,"bcr_patient_barcode"]
 
         samples <- substr(barcode, 1, 12)
         #find common patients between PR status and barcode data
@@ -232,11 +213,6 @@ PR_status_BRCA  <- function(barcode,PR, clinical_patient_data){
 #' @param clinical_patient_data clinical_patient_data
 #' @keywords internal
 #' @return HER_status_BRCA
-# @examples
-# # clin <- TCGAquery_clinic("BRCA","clinical_patient")
-# clin <- clinBRCA
-# HER_status_BRCA(c("TCGA-3C-AALK","TCGA-A2-A04Q","TCGA-A4-A04Q"),
-# "Positive",clin)
 HER_status_BRCA  <- function(barcode, HER, clinical_patient_data){
     if (is.element(HER, c("Positive", "Negative"))) {
         clinical_patient_data <- as.data.frame(clinical_patient_data)
@@ -257,22 +233,8 @@ HER_status_BRCA  <- function(barcode, HER, clinical_patient_data){
 
 }
 
-#' @title clinical_data_site_cancer
-#' @description
-#'   clinical_data_site_cancer
-#' @param cancer cancer
-#' @keywords internal
-# @examples clinical_data_site_cancer("gbm")
-#' @return clinical_data_site_cancer
-clinical_data_site_cancer <- function(cancer){
-    return(paste0("https://tcga-data.nci.nih.gov/tcgafiles/",
-                  "ftp_auth/distro_ftpusers/anonymous/tumor/",
-                  cancer,"/bcr/biotab/clin/"))
-}
 
-
-
-#' @title Get DDC clinical data
+#' @title Get GDC clinical data
 #' @description
 #' GDCquery_clinic will download all clinical information from the API
 #' as the one with using the button from each project
@@ -306,8 +268,13 @@ GDCquery_clinic <- function(project, type = "clinical", save.csv = FALSE){
                              URLencode('"]}},{"op":"in","content":{"field":"files.data_category","value":["'),
                              files.data_category,
                              URLencode('"]}}]}'))
+    url <- paste0(baseURL,paste(options.pretty,options.expand, option.size, options.filter,"format=json", sep = "&"))
+    json  <- tryCatch({
+        json <- fromJSON(url, simplifyDataFrame = TRUE)
+    }, error = function(e) {
+        json <- fromJSON(content(GET(url), as = "text", encoding = "UTF-8"), simplifyDataFrame = TRUE)
+    })
 
-    json <- fromJSON(paste0(baseURL,paste(options.pretty,options.expand, option.size, options.filter, sep = "&")), simplifyDataFrame = TRUE)
     #message(paste0(baseURL,paste(options.pretty,options.expand, option.size, options.filter, sep = "&")))
     results <- json$data$hits
     if(grepl("clinical",type,ignore.case = TRUE)) {
@@ -343,11 +310,13 @@ GDCquery_clinic <- function(project, type = "clinical", save.csv = FALSE){
 #' based on the desired information
 #' @param query Result from GDCquery, with data.category set to Clinical
 #' @param clinical.info Which information should be retrieved.
-#' Options: drug, admin, follow_up,radiation, patient, stage_event or new_tumor event
+#' Options Clinical: drug, admin, follow_up,radiation, patient, stage_event or new_tumor_event
+#' Options Biospecimen: protocol, admin, aliquot, analyte, bio_patient, sample, portion, slide
 #' @param directory Directory/Folder where the data was downloaded. Default: GDCdata
 #' @importFrom xml2 read_xml xml_ns
 #' @importFrom XML xmlParse getNodeSet xmlToDataFrame
 #' @importFrom plyr rbind.fill
+#' @importFrom dplyr mutate_each funs
 #' @export
 #' @examples
 #' query <- GDCquery(project = "TCGA-COAD",
@@ -358,8 +327,24 @@ GDCquery_clinic <- function(project, type = "clinical", save.csv = FALSE){
 #' clinical.drug <- GDCprepare_clinic(query,"drug")
 #' clinical.radiation <- GDCprepare_clinic(query,"radiation")
 #' clinical.admin <- GDCprepare_clinic(query,"admin")
+#' query <- GDCquery(project = "TCGA-COAD",
+#'                   data.category = "Biospecimen",
+#'                   barcode = c("TCGA-RU-A8FL","TCGA-AA-3972"))
+#' GDCdownload(query)
+#' clinical <- GDCprepare_clinic(query,"admin")
+#' clinical.drug <- GDCprepare_clinic(query,"sample")
+#' clinical.radiation <- GDCprepare_clinic(query,"portion")
+#' clinical.admin <- GDCprepare_clinic(query,"slide")
 GDCprepare_clinic <- function(query, clinical.info, directory = "GDCdata"){
-    if(missing(clinical.info)) stop("Please select a clinical information")
+    if(unique(query$results[[1]]$data_category) != "Biospecimen") {
+        valid.clinical.info <- c("drug","admin","follow_up","radiation","patient","stage_event","new_tumor_event")
+    } else  if(unique(query$results[[1]]$data_category) != "Clinical") {
+        valid.clinical.info <- c("protocol","admin","aliquot","analyte","bio_patient","sample", "portion", "slide")
+    } else {
+        stop("Data category should be Clinical or Biospecimen")
+    }
+    if(missing(clinical.info)) stop(paste0("Please set clinical.info argument:\n=> ",paste(valid.clinical.info,collapse = "\n=> ")))
+    if(!(clinical.info %in% valid.clinical.info)) stop(paste0("Please set a valid clinical.info argument:\n=> ",paste(valid.clinical.info,collapse = "\n=> ")))
 
     # Get all the clincal xml files
     source <- ifelse(query$legacy,"legacy","harmonized")
@@ -371,116 +356,133 @@ GDCprepare_clinic <- function(query, clinical.info, directory = "GDCdata"){
     files <- file.path(directory, files)
     if(!all(file.exists(files))) stop(paste0("I couldn't find all the files from the query.",
                                              "Please check directory parameter right"))
-
+    xpath <- NULL
 
     disease <- tolower(gsub("TCGA-","",query$project))
     if(tolower(clinical.info) == "drug")      xpath <- "//rx:drug"
-    if(tolower(clinical.info) == "admin")     xpath <- "//admin:admin"
-    if(tolower(clinical.info) == "follow_up"){
-        xmlfile <- files[1]
-        xml <- read_xml(xmlfile)
-        follow_up_version <-  names(xml_ns(xml))[grepl("follow_up",names(xml_ns(xml)))]
-        if(length(follow_up_version) > 1) {
-            n <- readline(prompt=paste0("There is more than one follow up version, please select one",
-                          paste0(seq(1:length(follow_up_version)), follow_up_version)))
-            follow_up_version <- follow_up_version[n]
-        }
-        xpath <- paste0("//", follow_up_version, ":follow_up")
-    }
-    if(tolower(clinical.info) == "radiation") xpath <- "//rad:radiation"
-    if(tolower(clinical.info) == "patient")   xpath <- paste0("//",disease,":patient")
-    if(tolower(clinical.info) == "stage_event")     xpath <- "//shared_stage:stage_event"
-    if(tolower(clinical.info) == "new_tumor_event") xpath <- paste0("//",disease,"_nte:new_tumor_event")
-    if(missing(clinical.info)) stop("Please set a valid clinical.info argument")
+    else if(tolower(clinical.info) == "admin")     xpath <- "//admin:admin"
+    else if(tolower(clinical.info) == "radiation") xpath <- "//rad:radiation"
+    else if(tolower(clinical.info) == "patient")   xpath <- paste0("//",disease,":patient")
+    else if(tolower(clinical.info) == "stage_event")     xpath <- "//shared_stage:stage_event"
+    else if(tolower(clinical.info) == "new_tumor_event") xpath <- paste0("//",disease,"_nte:new_tumor_event")
+    # biospecimen xpaths
+    else if(tolower(clinical.info) == "sample")      xpath <- "//bio:sample"
+    else if(tolower(clinical.info) == "bio_patient")      xpath <- "//bio:patient"
+    else if(tolower(clinical.info) == "analyte")      xpath <- "//bio:analyte"
+    else if(tolower(clinical.info) == "aliquot")      xpath <- "//bio:aliquot"
+    else if(tolower(clinical.info) == "protocol")      xpath <- "//bio:protocol"
+    else if(tolower(clinical.info) == "portion")      xpath <- "//bio:portion"
+    else if(tolower(clinical.info) == "slide")  xpath <- "//bio:slide"
 
+    clin <- parseXML(files,xpath,clinical.info)
+
+    if(tolower(clinical.info) == "patient") {
+        composed.cols <- c("new_tumor_events","drugs","follow_ups","radiations")
+        composed.cols <- composed.cols[composed.cols %in% colnames(clin)]
+        message("To get the following information please change the clinical.info argument")
+        message("=> new_tumor_events: new_tumor_event \n=> drugs: drug \n=> follow_ups: follow_up \n=> radiations: radiation")
+
+        for(i in composed.cols){
+            clin[,i] <- as.character(clin[,i])
+            clin[which(clin[,i] != ""),i] <- "YES"
+            clin[which(clin[,i] == ""),i] <- "NO"
+            colnames(clin)[which(colnames(clin) == i)] <- paste0("has_",i,"_information")
+        }
+        if("stage_event" %in% colnames(clin)) {
+            message("Adding stage event information")
+            aux <- parseXML(files,"//shared_stage:stage_event","stage_event")
+            colnames(aux)[1:(length(colnames(aux)) - 1)] <- paste0("stage_event_",colnames(aux)[1:(length(colnames(aux)) - 1)])
+            clin <- merge(clin, aux, by = "bcr_patient_barcode" , sort = FALSE, all.x = TRUE)
+            clin$stage_event <- NULL
+        }
+        if("primary_pathology" %in% colnames(clin)) {
+            message("Adding primary pathology information")
+            aux <- parseXML(files,paste0("//",disease,":primary_pathology"),"primary_pathology")
+            # Last column is the idx to merge
+            colnames(aux)[1:(length(colnames(aux)) - 1)] <- paste0("primary_pathology_",colnames(aux)[1:(length(colnames(aux)) - 1)])
+            clin <- merge(clin, aux, by = "bcr_patient_barcode" , sort = FALSE, all.x = TRUE)
+            clin$primary_pathology <- NULL
+        }
+
+    }
+    if(tolower(clinical.info) == "samples") clin$samples <- NULL
+    if(tolower(clinical.info) == "portion") {
+        for(i in c("slides","analytes")){
+            clin[,i] <- as.character(clin[,i])
+            clin[which(clin[,i] != ""),i] <- "YES"
+            clin[which(clin[,i] == ""),i] <- "NO"
+            colnames(clin)[which(colnames(clin) == i)] <- paste0("has_",i,"_information")
+        }
+    }
+    if(is.null(clin)) {
+        message("No information found")
+        return(NULL)
+    }
+    # Converting factor to numeric and double
+    out <- clin %>%
+        mutate_each(
+            funs(
+                type.convert(as.character(.), as.is = TRUE, numerals = "warn.loss")
+            )
+        )
+
+    # Change columns back to factor
+    for(i in colnames(out)[!grepl("has_",colnames(out))]) {
+        if(class(out[,i]) == "character" &  length(unique(out[,i])) < nrow(out)/2)
+            out[,i] <-  as.factor(out[,i])
+    }
+    return(out)
+}
+
+
+parseXML <- function(files, xpath, clinical.info ){
     clin <- NULL
+    pb <- txtProgressBar(min = 0, max = length(files), style = 3)
     for(i in seq_along(files)){
         xmlfile <- files[i]
         xml <- read_xml(xmlfile)
         doc = xmlParse(xmlfile)
 
+        if(tolower(clinical.info) == "follow_up" & is.null(xpath)){
+            follow_up_version <-  names(xml_ns(xml))[grepl("follow_up",names(xml_ns(xml)))]
+            if(length(follow_up_version) > 1) {
+                follow_up_version <- follow_up_version[length(follow_up_version)]
+            }
+            if(length(follow_up_version) == 1)  xpath <- paste0("//", follow_up_version, ":follow_up")
+            else next
+        }
+
         patient <- str_extract(xmlfile,"[:alnum:]{4}-[:alnum:]{2}-[:alnum:]{4}")
         # Test if this xpath exists before parsing it
         if(gsub("\\/\\/","", unlist(stringr::str_split(xpath,":"))[1]) %in% names(xml_ns(xml))){
-            df <- xmlToDataFrame(nodes = getNodeSet(doc,xpath))
-            if(NA %in% colnames(df)) df <- df[,!is.na(colnames(df))]
-            if(nrow(df) == 0) next
+            nodes <- getNodeSet(doc,xpath)
+            if(length(nodes) == 0) next;
+            df <- NULL
+            for(j in 1:length(nodes)) {
+                df.aux <- xmlToDataFrame(nodes = nodes[j])
+                if(NA %in% colnames(df.aux)) df.aux <- df.aux[,!is.na(colnames(df.aux))]
+                if(nrow(df.aux) == 0) next
+
+                if(j == 1) {
+                    df <- df.aux
+                } else {
+                    df <- rbind.fill(df,df.aux)
+                }
+            }
+
             df$bcr_patient_barcode <- patient
             if(i == 1) {
                 clin <- df
             } else {
                 clin <- rbind.fill(clin,df)
             }
+            setTxtProgressBar(pb, i)
         }
     }
+    close(pb)
     return(clin)
 }
 
-#' @title Get the clinical information
-#' @description
-#'   This function has been replaced. Use GDCquery_clinic
-#' @param tumor a character vector indicating cancer type Examples:
-#' \tabular{lllll}{
-#'OV   \tab BRCA \tab CESC \tab ESCA \tab PCPG\cr
-#'LUSC \tab LGG  \tab SKCM \tab KICH \tab CHOL\cr
-#'GBM  \tab UCEC \tab PRAD \tab PAAD \tab THYM\cr
-#'KIRC \tab THCA \tab SARC \tab LAML \tab TGCT\cr
-#'COAD \tab KIRP \tab HNSC \tab ACC  \tab UVM \cr
-#'READ \tab BLCA \tab DLBC \tab UCS  \tab FPPP\cr
-#'LUAD \tab LIHC \tab STAD \tab MESO \tab CNTL
-#'}
-#'
-#' For information about cancer types: https://tcga-data.nci.nih.gov/tcga/
-#' @param clinical_data_type a character vector indicating the types of
-#' clinical data. Besides TCGA data, we created the clinical_patient_updated,
-#' which is the clinical_patient file with the last follow up information from the last
-#' follow up file.
-#'  Example:
-#' \tabular{ll}{
-#' biospecimen_aliquot \tab biospecimen_analyte \cr
-#' biospecimen_cqcf \tab biospecimen_diagnostic_slides \cr
-#' biospecimen_normal_control \tab biospecimen_portion \cr
-#' biospecimen_protocol \tab biospecimen_sample \cr
-#' biospecimen_shipment_portion \tab biospecimen_slide \cr
-#' biospecimen_tumor_sample \tab clinical_cqcf \cr
-#' clinical_follow_up_v1.0 \tab clinical_follow_up_v1.5 \cr
-#' clinical_follow_up_v2.0 \tab clinical_follow_up_v2.1 \cr
-#' clinical_follow_up_v4.0 \tab clinical_follow_up_v4.0_nte \cr
-#' clinical_nte \tab  clinical_omf_v4.0 \cr
-#' clinical_patient \tab  clinical_radiation \cr
-#' ssf_normal_controls  \tab  ssf_tumor_samples \cr
-#' clinical_follow_up_v1.0_nte \cr clinical_patient_updated (TCGAbiolinks only)
-#'}
-#' @param samples List of barcodes to get the clinical data
-#' @param path Directory to save the downloaded data default getwd()
-#' @export
-#' @return clinic data
-#' @examples
-#' \dontrun{
-#' data <- TCGAquery_clinic("LGG","clinical_drug")
-#' }
-TCGAquery_clinic <- function(tumor, clinical_data_type, samples, path = getwd()){
-    stop("TCGA data has moved from DCC server to GDC server. Please use GDCquery_clinic function")
-}
-
-
-update.clinical.with.last.followup <- function(clin){
-
-    for(disease in unique(clin$disease)){
-        aux <- clinical.table[,disease]
-        files <- rownames(clinical.table[which(aux==1),])
-        # get last follow up files not nte
-        files <- sort(files[grepl("follow",files) & !grepl("nte",files)],decreasing = T)[1]
-
-        follow <- TCGAquery_clinic(disease,files)
-
-        colnames(follow) [colnames(follow) %in% colnames(clin)]
-        aux <- plyr::ddply(follow, .(bcr_patient_barcode), function(x) x[c(nrow(x)), ])
-        aux <- aux[aux$bcr_patient_barcode %in% clin$bcr_patient_barcode,colnames(aux) %in% colnames(clin)]
-        clin[na.omit(match(aux$bcr_patient_barcode,clin$bcr_patient_barcode)),match(colnames(aux),colnames(clin))] <- aux
-    }
-    return(clin)
-}
 
 #' @title Filter samples using clinical data
 #' @description
@@ -488,7 +490,6 @@ update.clinical.with.last.followup <- function(clin){
 #'   Filters available: HER, ER,gender,PR, stage.
 #' @param barcode List of barcodes
 #' @param clinical_patient_data clinical_patient_data obtained with clinic function
-#' Ex: clinical_patient_data <- TCGAquery_clinic("LGG","clinical_patient")
 #' @param HER  her2 neu immunohistochemistry receptor status: "Positive" or "Negative"
 #' @param gender "MALE" or "FEMALE"
 #' @param PR  Progesterone receptor status: "Positive" or "Negative"
@@ -499,28 +500,12 @@ update.clinical.with.last.followup <- function(clin){
 #' @export
 #' @return List of samples that matches the filters
 #' @examples
-#' # clin <- TCGAquery_clinic("BRCA","clinical_patient")
-#' clin <- clinBRCA
-#' bar <- c("TCGA-G9-6378-02A-11R-1789-07", "TCGA-CH-5767-04A-11R-1789-07",
-#'         "TCGA-G9-6332-60A-11R-1789-07", "TCGA-G9-6336-01A-11R-1789-07",
-#'         "TCGA-G9-6336-11A-11R-1789-07", "TCGA-G9-7336-11A-11R-1789-07",
-#'         "TCGA-G9-7336-04A-11R-1789-07", "TCGA-G9-7336-14A-11R-1789-07",
-#'         "TCGA-G9-7036-04A-11R-1789-07", "TCGA-G9-7036-02A-11R-1789-07",
-#'         "TCGA-G9-7036-11A-11R-1789-07", "TCGA-G9-7036-03A-11R-1789-07",
-#'         "TCGA-G9-7036-10A-11R-1789-07", "TCGA-BH-A1ES-10A-11R-1789-07",
-#'         "TCGA-BH-A1F0-10A-11R-1789-07", "TCGA-BH-A0BZ-02A-11R-1789-07",
-#'         "TCGA-B6-A0WY-04A-11R-1789-07", "TCGA-BH-A1FG-04A-11R-1789-08",
-#'         "TCGA-D8-A1JS-04A-11R-2089-08", "TCGA-AN-A0FN-11A-11R-8789-08",
-#'         "TCGA-AR-A2LQ-12A-11R-8799-08", "TCGA-AR-A2LH-03A-11R-1789-07",
-#'         "TCGA-BH-A1F8-04A-11R-5789-07", "TCGA-AR-A24T-04A-55R-1789-07",
-#'         "TCGA-AO-A0J5-05A-11R-1789-07", "TCGA-BH-A0B4-11A-12R-1789-07",
-#'         "TCGA-B6-A1KN-60A-13R-1789-07", "TCGA-AO-A0J5-01A-11R-1789-07",
-#'         "TCGA-AO-A0J5-01A-11R-1789-07", "TCGA-G9-6336-11A-11R-1789-07",
-#'         "TCGA-G9-6380-11A-11R-1789-07", "TCGA-G9-6380-01A-11R-1789-07",
-#'         "TCGA-G9-6340-01A-11R-1789-07","TCGA-G9-6340-11A-11R-1789-07")
-#'
-#' TCGAquery_clinicFilt(c("TCGA-3C-AALK","TCGA-A2-A04Q","TCGA-A4-A04Q"),clin,
-#' HER="Positive", gender="FEMALE",ER="Positive")
+#' clin.query <- GDCquery(project = "TCGA-BRCA", data.category = "Clinical",
+#'                       barcode = c("TCGA-3C-AALK","TCGA-A2-A04Q","TCGA-A4-A04Q"))
+#' tryCatch(GDCdownload(clin.query), error = function(e) GDCdownload(clin.query, method = "client"))
+#' clinical.patient <- GDCprepare_clinic(clin.query, clinical.info = "patient")
+#' TCGAquery_clinicFilt(c("TCGA-3C-AALK","TCGA-A2-A04Q","TCGA-A4-A04Q"),clinical.patient,
+#'                      HER="Positive", gender="FEMALE",ER="Positive")
 TCGAquery_clinicFilt <- function(barcode,
                                  clinical_patient_data,
                                  HER=NULL,
@@ -588,84 +573,6 @@ TCGAquery_clinicFilt <- function(barcode,
     return(x)
 }
 
-load.maf <- function(){
-    if (requireNamespace("xml2", quietly = TRUE) & requireNamespace("rvest", quietly = TRUE) ) {
-        tables <- xml2::read_html("https://wiki.nci.nih.gov/display/TCGA/TCGA+MAF+Files")
-        tables <-  rvest::html_table(tables)
-        # Table one is junk
-        tables[[1]] <- NULL
-
-        # get which tables are from the tumor
-        all.df <- data.frame()
-        for(tumor in unique(TCGAbiolinks::TCGAquery()$Disease)) {
-
-            idx <- which(mapply(function(x) {
-                any(grepl(tumor,(x[,1]), ignore.case = TRUE))
-            },tables) == TRUE)
-            df <- lapply(idx,function(x) tables[x])
-
-            if(length(df) == 0) next
-            # merge the data frame in the lists
-            if(length(idx) > 1) {
-                df <- Reduce(function(...) merge(..., all=TRUE), df)
-            }  else if(length(idx) == 1) {
-                df <- Reduce(function(...) merge(..., all=TRUE), df)
-                df <- df[[1]]
-                colnames(df) <- gsub(" ",".", colnames(df))
-                colnames(df) <- gsub(":",".", colnames(df))
-            }
-
-            # Remove obsolete/protected
-            df <- subset(df, df$Deploy.Status == "Available")
-            df <- subset(df, df$Protection.Status == "Public")
-
-            if(nrow(df) == 0) next
-
-            df$Tumor <- tumor
-            all.df <- rbind(all.df,df)
-        }
-
-        all.df[,"Deploy.Location"] <- gsub("/dccfiles_prod/tcgafiles/",
-                                           "https://tcga-data.nci.nih.gov/tcgafiles/ftp_auth/",
-                                           all.df[,"Deploy.Location"] )
-    }
-    return(all.df)
-}
-
-get.mutation.matrix <- function(barcode,query){
-    maf <- load.maf()
-    maf <- maf[order(as.Date(maf$Deploy.Date, "%d-%b-%Y")),]
-    aux <- plyr::ddply(maf, .(Tumor), function(x) x[c(nrow(x)), ])
-
-    ret <- NULL
-    for(disease in unique(query$Disease)){
-        df <- aux[aux$Tumor == disease,]
-        message(paste0("Downloading maf file",df$MAF.File.Name))
-        if(is.windows()) mode <- "wb" else  mode <- "w"
-        if (!file.exists(df$MAF.File.Name))
-            downloader::download(df$Deploy.Location,df$MAF.File.Name, quiet = FALSE,mode = mode)
-
-        mutation.matrix <- read.table(df$MAF.File.Name, fill = TRUE,
-                                      comment.char = "#", header = TRUE, sep = "\t", quote='')
-        mutation.matrix <- mutation.matrix[substr(mutation.matrix$Tumor_Sample_Barcode,1,15) %in% substr(barcode,1,15),]
-        if(nrow(mutation.matrix) == 0) {
-            next
-        }
-        # Fazer um subset de acordo com as amostras que eu tenho
-        mutation.matrix <- data.table::setDT(mutation.matrix)
-        mutation.matrix <- reshape2::acast(mutation.matrix, Tumor_Sample_Barcode~Hugo_Symbol, value.var="Variant_Type")
-        mutation.matrix[which(mutation.matrix > 0)] <- 1
-        if(is.null(ret)) {
-            ret <- mutation.matrix
-        }  else{
-            ret <- plyr::rbind.fill(as.data.frame(ret),as.data.frame(mutation.matrix))
-            ret[is.na(ret)] <- 0
-        }
-    }
-    return(ret)
-}
-
-
 #' @title Retrieve molecular subtypes for a given tumor
 #' @description
 #'   TCGAquery_subtype Retrieve molecular subtypes for a given tumor
@@ -699,6 +606,7 @@ TCGAquery_subtype <- function(tumor){
                  "ovca"= "doi:10.1038/nature10166",
                  "pancan"="doi:10.1016/j.cell.2014.06.049",
                  "prad"="doi:10.1016/j.cell.2015.10.025",
+                 "read"="doi:10.1038/nature11252",
                  "skcm"="doi:10.1016/j.cell.2015.05.044",
                  "stad"="doi:10.1038/nature13480",
                  "thca"="doi:10.1016/j.cell.2014.09.050",

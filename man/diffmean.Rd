@@ -4,7 +4,8 @@
 \alias{diffmean}
 \title{Calculate diffmean methylation between two groups}
 \usage{
-diffmean(data, groupCol = NULL, group1 = NULL, group2 = NULL)
+diffmean(data, groupCol = NULL, group1 = NULL, group2 = NULL,
+  save = FALSE)
 }
 \arguments{
 \item{data}{SummarizedExperiment object obtained from TCGAPrepare}
@@ -14,6 +15,8 @@ diffmean(data, groupCol = NULL, group1 = NULL, group2 = NULL)
 \item{group1}{Name of group1 to be used in the analysis}
 
 \item{group2}{Name of group2  to be used in the analysis}
+
+\item{save}{Save histogram of diffmean}
 }
 \value{
 Saves in the rowRages(data) the columns: mean.group1, mean.group2
@@ -25,7 +28,6 @@ Calculate diffmean methylation of probes between two groups removing lines
    that has NA values.
 }
 \examples{
-\dontrun{
 nrows <- 200; ncols <- 20
 counts <- matrix(runif(nrows * ncols, 1, 1e4), nrows)
 rowRanges <- GenomicRanges::GRanges(rep(c("chr1", "chr2"), c(50, 150)),
@@ -39,8 +41,7 @@ data <- SummarizedExperiment::SummarizedExperiment(
          assays=S4Vectors::SimpleList(counts=counts),
          rowRanges=rowRanges,
          colData=colData)
-data <- diffmean(data)
-}
+ diff.mean <- TCGAbiolinks:::diffmean(data,groupCol = "group")
 }
 \keyword{internal}
 

@@ -8,6 +8,8 @@
 #' @param method Uses the API (POST method) or gdc client tool. Options "api", "client".
 #' API is faster, but the data might get corrupted in the download, and it might need to be executed again
 #' @param directory Directory/Folder where the data was downloaded. Default: GDCdata
+#' @param chunks.per.download This will make the API method only download n (chunks.per.download) files at a time.
+#' This may reduce the download problems when the data size is too large. Expected a integer number (example chunks.per.download = 6)
 #' @importFrom tools md5sum
 #' @importFrom utils untar
 #' @import httr
@@ -25,13 +27,17 @@
 #'                   data.type = "miRNA Expression Quantification",
 #'                   workflow.type = "BCGSC miRNA Profiling",
 #'                   barcode = c("TARGET-20-PARUDL-03A-01R","TARGET-20-PASRRB-03A-01R"))
-#' # data will be saved in  example_data_dir/TARGET-AML/harmonized/Transcriptome_Profiling/miRNA_Expression_Quantification
+#' # data will be saved in:
+#' # example_data_dir/TARGET-AML/harmonized/Transcriptome_Profiling/miRNA_Expression_Quantification
 #' GDCdownload(query, method = "client", directory = "example_data_dir")
+#' query <- GDCquery(project = "TCGA-COAD", data.category = "Clinical")
+#' GDCdownload(query, chunks.per.download = 200)
 #' @return Shows the output from the GDC transfer tools
 GDCdownload <- function(query,
                         token.file,
                         method = "api",
-                        directory = "GDCdata") {
+                        directory = "GDCdata",
+                        chunks.per.download = NULL) {
 
     if(missing(query)) warning("Please set query argument")
     if(!(method %in% c("api","client"))) stop("method arguments possible values are: 'api' or 'client'")
@@ -49,6 +55,11 @@ GDCdownload <- function(query,
     # Check if the files were already downloaded by this package
 
     files2Download <- !file.exists(file.path(path,manifest$id,manifest$filename))
+    if(any(files2Download == FALSE)) {
+        message("Of the ", nrow(manifest), " files for download ",
+                table(files2Download)["FALSE"] , " already exist.")
+        if(any(files2Download == TRUE)) message("We will download only those that are missing ones.")
+    }
     manifest <- manifest[files2Download,]
     # There is a bug in the API, if the files has the same name it will not download correctly
     # so method should be set to client if there are files with duplicated names
@@ -87,21 +98,18 @@ GDCdownload <- function(query,
         if(nrow(manifest) > 1) {
             name <- paste0(gsub(" |:","_",date()),".tar.gz")
             unlink(name)
-            message(paste0("GDCdownload will download: ",
-                           humanReadableByteCount(sum(as.numeric(manifest$size))),
-                           " compressed in a tar.gz file"))
+            message(paste0("GDCdownload will download ", nrow(manifest), " files. A total of " ,
+                           humanReadableByteCount(sum(as.numeric(manifest$size)))))
         } else {
             # case with one file only. This is not at tar.gz
-            name <- query$results[[1]]$file_name
+            name <- manifest$filename
             message(paste0("GDCdownload will download: ",
                            humanReadableByteCount(sum(as.numeric(manifest$size)))))
         }
-        message(paste0("Downloading as: ", name))
 
-        # Is there a better way to do it using rcurl library?
         server <- ifelse(query$legacy,"https://gdc-api.nci.nih.gov/legacy/data/", "https://gdc-api.nci.nih.gov/data/")
-        body <- list(ids=list(manifest$id))
 
+<<<<<<< HEAD
         result = tryCatch({
             bin <- POST(server,
                         body = body,
@@ -136,15 +144,74 @@ GDCdownload <- function(query,
                     move(file,file.path(path,file))
                 }
                 if(nrow(manifest) == 1) move(file,file.path(path,id,file))
+=======
+        if(is.null(chunks.per.download)) {
+            message(paste0("Downloading as: ", name))
+            GDCdownload.aux(server, manifest, name, path)
+        } else {
+            step <- chunks.per.download
+            for(idx in 0:ceiling(nrow(manifest)/step - 1)){
+                end <- ifelse(((idx + 1) * step) > nrow(manifest), nrow(manifest),((idx + 1) * step))
+                manifest.aux <- manifest[((idx * step) + 1):end,]
+                size <- humanReadableByteCount(sum(as.numeric(manifest.aux$size)))
+                name.aux <- gsub(".tar",paste0("_",idx,".tar"),name)
+                message(paste0("Downloading chunk ", idx, " of ", ceiling(nrow(manifest)/step - 1) ,
+                               " (", nrow(manifest.aux)," files, size = ", size,") ",
+                               "as ", name.aux))
+                GDCdownload.aux(server, manifest.aux, name.aux, path)
+>>>>>>> BioinformaticsFMRP/master
             }
-            message("Download completed")
-
-        })
+        }
     } else {
-        message("All samples have been already downloded")
+        message("All samples have been already downloaded")
     }
 }
 
+GDCdownload.aux <- function(server, manifest, name, path){
+    result = tryCatch({
+        bin <- POST(server,
+                    body =  list(ids=list(manifest$id)),
+                    encode = "json", progress())
+        writeBin(content(bin,"raw",encoding = "UTF-8"), name)
+
+        if(nrow(manifest) > 1) {
+            success <- untar(name)
+            unlink(name) # remove tar
+            if(success != 0){
+                print(success)
+                stop("There was an error in the download process, please execute it again")
+            }
+        }
+        # moving to project/source/data_category/data_type/file_id
+        for(i in seq_along(manifest$filename)) {
+            if(nrow(manifest) > 1) file <- file.path(manifest$id[i], manifest$filename[i])
+            if(nrow(manifest) == 1) file <- file.path(manifest$filename[i])
+            id <- manifest$id[i]
+
+            # Check status
+            if(!(md5sum(file) == manifest$md5[i])){
+                message(paste0("File corrupted:", file))
+                message("Run GDCdownload again to download it")
+                unlink(file)
+                next
+            }
+            if(nrow(manifest) > 1) {
+                move(file,file.path(path,file))
+            }
+            if(nrow(manifest) == 1) move(file,file.path(path,id,file))
+        }
+        return(1)
+    }, warning = function(w) {
+        return(1)
+    }, error = function(e) {
+        unlink(name) # remove tar
+        return(-1)
+    })
+    if(result == -1) stop(paste0("There was an error in the download process (we might had a connection problem with GDC server).",
+                                 "\nPlease run this function it again.",
+                                 "\nTry using method = `client` or setting chunks.per.download to a small number."))
+    message("Download completed")
+}
 
 humanReadableByteCount <- function(bytes) {
     unit <- 1000
@@ -168,21 +235,28 @@ GDCclientExists <- function(){
 }
 #' @importFrom xml2 read_html
 #' @importFrom downloader download
-#' @importFrom rvest html_nodes html_attr
+#' @importFrom rvest html_nodes html_attr %>%
 GDCclientInstall <- function(){
     if(GDCclientExists()) return(GDCclientPath())
 
-    links <- read_html("https://gdc.nci.nih.gov/access-data/gdc-data-transfer-tool")  %>% html_nodes("a") %>% html_attr("href")
+    links = tryCatch({
+        read_html("https://gdc.nci.nih.gov/access-data/gdc-data-transfer-tool")  %>% html_nodes("a") %>% html_attr("href")
+    }, error = function(e) {
+        c("https://gdc.nci.nih.gov/files/public/file/gdc-client_v1.2.0_Windows_x64.zip.zip",
+          "https://gdc.nci.nih.gov/files/public/file/gdc-client_v1.2.0_Ubuntu14.04_x64.zip",
+          "https://gdc.nci.nih.gov/files/public/file/gdc-client_v1.2.0_OSX_x64.zip")
+    })
     bin <- links[grep("zip",links)]
-    if(is.windows()) bin <- bin[grep("windows", bin)]
+    if(is.windows()) bin <- bin[grep("windows", bin,ignore.case = TRUE)]
     if(is.mac()) bin <- bin[grep("OSX", bin)]
     if(is.linux()) bin <- bin[grep("Ubuntu", bin)]
     if(is.windows()) mode <- "wb" else  mode <- "w"
-    download(paste0("https://gdc.nci.nih.gov/",bin), basename(bin), mode = mode)
+    download(bin, basename(bin), mode = mode)
     unzip(basename(bin))
     Sys.chmod("gdc-client")
     return(GDCclientPath())
 }
+<<<<<<< HEAD
 #' @title Download the data from TCGA using as reference the output from TCGAquery
 #' @description
 #'      The TCGAdownload function will download the data using as reference
@@ -222,3 +296,6 @@ GDCclientInstall <- function(){
 TCGAdownload <- function(data = NULL, path = ".", type = NULL, samples = NULL, force = FALSE) {
     stop("TCGA data has moved from DCC server to GDC server. Please use GDCdownload function")
 }
+=======
+
+>>>>>>> BioinformaticsFMRP/master

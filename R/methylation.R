@@ -6,6 +6,7 @@
 #' @param groupCol Columns in colData(data) that defines the groups.
 #' @param group1 Name of group1 to be used in the analysis
 #' @param group2 Name of group2  to be used in the analysis
+#' @param save Save histogram of diffmean
 #' @import ggplot2
 #' @import graphics
 #' @importFrom grDevices png dev.off
@@ -15,7 +16,6 @@
 #'        diffmean.group1.group2; Where group1 and group2 are the names of the
 #'        groups.
 #' @examples
-#' \dontrun{
 #' nrows <- 200; ncols <- 20
 #' counts <- matrix(runif(nrows * ncols, 1, 1e4), nrows)
 #' rowRanges <- GenomicRanges::GRanges(rep(c("chr1", "chr2"), c(50, 150)),
@@ -29,10 +29,9 @@
 #'          assays=S4Vectors::SimpleList(counts=counts),
 #'          rowRanges=rowRanges,
 #'          colData=colData)
-#' data <- diffmean(data)
-#' }
+#'  diff.mean <- TCGAbiolinks:::diffmean(data,groupCol = "group")
 #' @keywords internal
-diffmean <- function(data, groupCol = NULL, group1 = NULL, group2 = NULL) {
+diffmean <- function(data, groupCol = NULL, group1 = NULL, group2 = NULL, save = FALSE) {
 
     if (is.null(groupCol)) {
         message("Please, set the groupCol parameter")
@@ -57,17 +56,28 @@ diffmean <- function(data, groupCol = NULL, group1 = NULL, group2 = NULL) {
     diffmean <- mean.g2 - mean.g1
 
     # Saves the result
-    values(rowRanges(data))[,paste0("mean.",group1)] <-  mean.g1
-    values(rowRanges(data))[,paste0("mean.",group2)] <-  mean.g2
-    values(rowRanges(data))[,paste0("diffmean.",group1,".",group2)] <-  diffmean
-    values(rowRanges(data))[,paste0("diffmean.",group2,".",group1)] <-  -diffmean
-
+    group1.col <- gsub("[[:punct:]]| ", ".", group1)
+    group2.col <- gsub("[[:punct:]]| ", ".", group2)
+    values(rowRanges(data))[,paste0("mean.", group1.col)] <-  mean.g1
+    values(rowRanges(data))[,paste0("mean.", group2.col)] <-  mean.g2
+    values(rowRanges(data))[,paste0("diffmean.",group1.col,".", group2.col)] <-  diffmean
+    values(rowRanges(data))[,paste0("diffmean.",group2.col,".", group1.col)] <-  -diffmean
     # Ploting a histogram to evaluate the data
-    message("Saved histogram_diffmean.png...")
-    png(filename = "histogram_diffmean.png")
-    hist(diffmean)
-    dev.off()
-
+    tryCatch({
+        if(save) {
+            fhist <- paste0("histogram_diffmean.",group1.col,group2.col,".png")
+            message("Saving histogram of diffmean values: ", fhist)
+            p <- qplot(diffmean,
+                       geom="histogram",
+                       binwidth = 0.5,
+                       main = "Histogram for diffmeans",
+                       xlab = "Diffmean",
+                       fill=I("blue"))
+            png(filename = fhist)
+            print(p)
+            dev.off()
+        }
+    })
     return(data)
 }
 
@@ -80,7 +90,7 @@ diffmean <- function(data, groupCol = NULL, group1 = NULL, group2 = NULL) {
 #' @param clusterCol Column with groups to plot. This is a mandatory field, the
 #' caption will be based in this column
 #' @param legend Legend title of the figure
-#' @param cutoff xlim This parameter will be a limit in the x-axis. That means, that
+#' @param xlim This parameter will be a limit in the x-axis. That means, that
 #' patients with days_to_deth > cutoff will be set to Alive.
 #' @param main main title of the plot
 #' @param labels labels of the plot
@@ -88,31 +98,36 @@ diffmean <- function(data, groupCol = NULL, group1 = NULL, group2 = NULL) {
 #' @param xlab x axis text of the plot
 #' @param filename The name of the pdf file.
 #' @param color Define the colors of the lines.
+#' @param risk.table show or not the risk table
 #' @param width Image width
 #' @param height Image height
-#' @param print.value Print pvalue in the plot? Default: TRUE
-#' @param legend.position Legend position ("top", "right","left","bottom")
-#' @param legend.title.position  Legend title position ("top", "right","left","bottom")
-#' @param legend.ncols Number of columns of the legend
-#' @param add.legend If true, legend is created. Otherwise names will
-#' be added to the last point in the lines.
-#' @param add.points If true, shows each death at the line of survival curves
+#' @param pvalue show p-value of log-rank test
+#' @param conf.int  show confidence intervals for point estimaes of survival curves.
+#' @param ... Further arguments passed to \link[survminer]{ggsurvplot}.
 #' @param dpi Figure quality
-#' @importFrom GGally ggsurv
+#' @importFrom survminer ggsurvplot
 #' @importFrom survival survfit Surv
 #' @importFrom scales percent
 #' @importFrom ggthemes theme_base
 #' @importFrom ggrepel geom_text_repel
+#' @importFrom gridExtra rbind.gtable
 #' @export
 #' @return Survival plot
 #' @examples
 #' clin <- GDCquery_clinic("TCGA-LGG", type = "clinical", save.csv = FALSE)
 #' TCGAanalyze_survival(clin, clusterCol="gender")
+#' TCGAanalyze_survival(clin, clusterCol="gender", xlim = 1000)
+#' TCGAanalyze_survival(clin,
+#'                      clusterCol="gender",
+#'                      risk.table = FALSE,
+#'                      conf.int = FALSE,
+#'                      color = c("pink","blue"))
 TCGAanalyze_survival <- function(data,
                                  clusterCol = NULL,
                                  legend = "Legend",
                                  labels = NULL,
-                                 cutoff = 0,
+                                 risk.table = TRUE,
+                                 xlim = NULL,
                                  main = "Kaplan-Meier Overall Survival Curves",
                                  ylab = "Probability of survival",
                                  xlab = "Time since diagnosis (days)",
@@ -121,17 +136,14 @@ TCGAanalyze_survival <- function(data,
                                  height = 8,
                                  width = 12,
                                  dpi = 300,
-                                 legend.position = "inside",
-                                 legend.title.position = "top",
-                                 legend.ncols = 1,
-                                 add.legend = TRUE,
-                                 print.value = TRUE,
-                                 add.points = TRUE
+                                 pvalue = TRUE,
+                                 conf.int = TRUE,
+                                 ...
 ) {
     .e <- environment()
 
-    if(!all(c("vital_status", "days_to_death") %in% colnames(data)))
-        stop("Columns vital_status, days_to_death should be in data frame")
+    if(!all(c("vital_status", "days_to_death","days_to_last_follow_up") %in% colnames(data)))
+        stop("Columns vital_status, days_to_death and  days_to_last_follow_up should be in data frame")
 
     if(is.null(color)){
         color <- rainbow(length(unique(data[,clusterCol])))
@@ -139,94 +151,62 @@ TCGAanalyze_survival <- function(data,
 
     group <- NULL
     if (is.null(clusterCol)) {
-        message("Please provide the clusterCol argument")
-        return(NULL)
+        stop("Please provide the clusterCol argument")
+    } else if(length(unique(data[,clusterCol])) == 1) {
+        stop( paste0("Sorry, but I'm expecting at least two groups\n",
+                     "  Only this group found: ", unique(data[,clusterCol])))
     }
     notDead <- is.na(data$days_to_death)
 
-    if (length(notDead) > 0) {
-        data[notDead,]$days_to_death <- data[notDead,]$days_to_last_follow_up
+    if (any(notDead == TRUE)) {
+        data[notDead,"days_to_death"] <- data[notDead,"days_to_last_follow_up"]
     }
     # create a column to be used with survival package, info need
     # to be TRUE(DEAD)/FALSE (ALIVE)
-    data$s <- grepl("dead",data$vital_status,ignore.case = TRUE)
+    data$s <- grepl("dead|deceased",data$vital_status,ignore.case = TRUE)
 
     # Column with groups
     data$type <- as.factor(data[,clusterCol])
-
+    data <-  data[,c("days_to_death","s","type")]
     # create the formula for survival analysis
     f.m <- formula(Surv(as.numeric(data$days_to_death),event=data$s) ~ data$type)
-    fit <- survfit(f.m, data = data)
-
-    # calculating p-value
-    pvalue <- summary(coxph(
-        Surv(as.numeric(data$days_to_death),event=data$s)
-        ~ data$type))$logtest[3]
-
-
-    surv <- ggsurv(fit, CI = "def", plot.cens = FALSE,
-                   surv.col = "gg.def",
-                   cens.col = "red", lty.est = 1,
-                   lty.ci = 2, cens.shape = 3,
-                   back.white = TRUE,
-                   xlab = xlab, ylab = ylab, main = main)
-
-    if (print.value){
-        surv <- surv + annotate("text",x = -Inf,y = -Inf, hjust = -0.1,
-                                vjust = -1.0, size = 6,
-                                label = paste0("Log-Rank P-value = ",
-                                               format(pvalue,
-                                                      scientific = TRUE,
-                                                      digits = 2)))
-    }
-
-    if (cutoff != 0) {
-        surv <- surv + ggplot2::coord_cartesian(xlim = c(0, cutoff))
-    }
+    fit <- do.call(survfit, list(formula = f.m, data = data))
 
     label.add.n <- function(x) {
         paste0(x, " (n = ",
-               nrow(subset(data,data[,clusterCol] == x)), ")")
+               nrow(data[data[,"type"] == x,]), ")")
     }
 
     if(is.null(labels)){
         labels <- sapply(levels(data$type),label.add.n)
     }
-    surv <- surv + scale_colour_manual(name = legend,
-                                       labels = labels,
-                                       values=color)
-    if(add.points){
-        surv <- surv + geom_point(aes(colour = group),
-                                  shape = 3,size = 2)
-    }
-    surv <- surv + guides(linetype = FALSE) +
-        scale_y_continuous(labels = scales::percent) +
-        theme_base()
+    if(!is.null(xlim)) xlim <- c(0, xlim)
 
-    if(add.legend == TRUE){
-        if(legend.position == "inside"){
-            surv <- surv +  theme(legend.justification=c(1,1),
-                                  legend.background = element_rect(colour = "black"),
-                                  legend.position=c(1,1))
-        } else {
-            surv <- surv +  theme(legend.position=legend.position)
-        }
-        surv <- surv +
-            guides(color=guide_legend(override.aes=list(size=3)),
-                   fill=guide_legend(ncol=legend.ncols,title.position = legend.title.position, title.hjust =0.5))
+    surv <- ggsurvplot(
+        fit,                     # survfit object with calculated statistics.
+        risk.table = risk.table,       # show risk table.
+        pval = pvalue,             # show p-value of log-rank test.
+        conf.int = conf.int,         # show confidence intervals for point estimaes of survival curves.
+        xlim = xlim,         # present narrower X axis, but not affect survival estimates.
+        main = main,
+        xlab = xlab,   # customize X axis label.
+        ggtheme = theme_light(), # customize plot and risk table with a theme.
+        legend.title = legend,
+        legend.labs = labels,    # change legend labels.
+        palette =  color # custom color palettes.
+    )
 
-    }
-
-    if(add.legend == FALSE){
-        surv <- surv +  geom_text_repel(data=ddply(surv$data, .(group), function(x) x[nrow(x), ]),
-                                        aes(label = group, color = factor(group)),
-                                        segment.color = '#555555', segment.size = 0.0,
-                                        size = 3, show.legend = FALSE) +
-            theme(legend.position="none")
-    }
 
     if(!is.null(filename)) {
-        ggsave(surv, filename = filename, width = width, height = height, dpi = dpi)
+        ggsave(surv$plot, filename = filename, width = width, height = height, dpi = dpi)
+        message(paste0("File saved as: ", filename))
+        if(risk.table){
+            g1 <- ggplotGrob(surv$plot)
+            g2 <- ggplotGrob(surv$table)
+            min_ncol <- min(ncol(g2), ncol(g1))
+            g <- rbind.gtable(g1[, 1:min_ncol], g2[, 1:min_ncol], size="last")
+            ggsave(g, filename = filename, width = width, height = height, dpi = dpi)
+        }
     } else {
         return(surv)
     }
@@ -325,7 +305,7 @@ TCGAvisualize_meanMethylation <- function(data,
                                           legend.position = "top",
                                           legend.title.position = "top",
                                           legend.ncols = 3,
-                                          add.axis.x.text = FALSE,
+                                          add.axis.x.text = TRUE,
                                           width=10,
                                           height=10,
                                           dpi=600,
@@ -349,9 +329,9 @@ TCGAvisualize_meanMethylation <- function(data,
     }
 
     if (!is.null(subgroupCol)){
-        df <- data.frame(mean = mean, groups = groups, subgroups = subgroups)
+        df <- data.frame(mean = mean, groups = groups, subgroups = subgroups, samples = colnames(data))
     } else {
-        df <- data.frame(mean = mean, groups = groups)
+        df <- data.frame(mean = mean, groups = groups,samples = colnames(data))
     }
     message("==================== DATA Summary ====================")
     data.summary <- ddply(df, .(groups), summarize,
@@ -417,7 +397,7 @@ TCGAvisualize_meanMethylation <- function(data,
     } else if(sort == "median.desc") {
         x <- reorder(df$groups, -df$mean, FUN="median")
     }
-
+    x <- droplevels(x)
     if (is.null(labels)) {
         labels <- levels(x)
         labels <-  sapply(labels,label.add.n)
@@ -448,8 +428,7 @@ TCGAvisualize_meanMethylation <- function(data,
     }
     if(add.axis.x.text){
         axis.text.x <- element_text(angle = axis.text.x.angle,
-                                    vjust = 0.5,
-                                    size = 16)
+                                    vjust = 0.5)
     } else {
         axis.text.x <-  element_blank()
     }
@@ -457,21 +436,16 @@ TCGAvisualize_meanMethylation <- function(data,
     p <- p + scale_x_discrete(limits=levels(x))
     p <- p + ylab(ylab) + xlab(xlab) + labs(title = title) +
         labs(shape=subgroup.legend, color=group.legend) +
-        theme_bw() +
+        theme_minimal() +
         theme(axis.title.x = element_text(face = "bold", size = 20),
               axis.text.x = axis.text.x,
               axis.title.y = element_text(face = "bold",
                                           size = 20),
               axis.text.y = element_text(size = 16),
-              plot.title = element_text(face = "bold", size = 16),
+              plot.title = element_text(face = "bold", size = 16, hjust = 0.5),
               legend.text = element_text(size = 14),
               legend.title = element_text(size = 14),
               axis.text= element_text(size = 22),
-              panel.border = element_blank(),
-              panel.grid.major = element_blank(),
-              panel.grid.minor = element_blank(),
-              axis.line.x=element_line(colour = "black"),
-              axis.line.y=element_line(colour = "black"),
               legend.position=legend.position,
               legend.key = element_rect(colour = 'white')) +
         guides(fill=guide_legend(ncol=legend.ncols,title.position = legend.title.position, title.hjust =0.5))
@@ -521,12 +495,12 @@ TCGAvisualize_meanMethylation <- function(data,
 #' @param exact  Do a exact wilcoxon test? Default: True
 #' @param  method P-value adjustment method. Default:"BH" Benjamini-Hochberg
 #' @param cores Number of cores to be used
+#' @param save Save histogram of pvalues
 #' @return Data frame with cols p values/p values adjusted
 #' @import graphics
 #' @importFrom grDevices png dev.off pdf
 #' @import stats
 #' @importFrom parallel detectCores
-#' @importFrom coin wilcox_test wilcoxsign_test pvalue
 #' @importFrom SummarizedExperiment colData rowRanges rowRanges<- colData<-
 #' @return Data frame with two cols
 #'         p-values/p-values adjusted
@@ -548,6 +522,7 @@ TCGAvisualize_meanMethylation <- function(data,
 #' data <- calculate.pvalues(data,"group")
 #' }
 #' @importFrom plyr adply
+#' @importFrom stats wilcox.test
 #' @importFrom doParallel registerDoParallel
 #' @keywords internal
 calculate.pvalues <- function(data,
@@ -557,7 +532,7 @@ calculate.pvalues <- function(data,
                               paired = FALSE,
                               method = "BH",
                               exact = TRUE,
-                              cores = 1) {
+                              cores = 1, save = FALSE) {
 
     parallel <- FALSE
     if (cores > 1){
@@ -596,61 +571,47 @@ calculate.pvalues <- function(data,
         )
     }
 
-    if(!paired){
-        p.value <- adply(assay(data),1,
-                         function(x) {
-                             aux <- data_frame(beta=x[c(idx1,idx2)],
-                                               cluster=droplevels(
-                                                   colData(data)[c(idx1,idx2),
-                                                                 groupCol]))
-                             #aux <- na.omit(aux)
-                             #if(nrow(aux) == 0) return (NaN)
-                             pvalue(wilcox_test(beta ~ cluster,
-                                                data=aux,
-                                                distribution = "exact"))
-                         }, .progress = "text", .parallel = parallel
-        )
-        p.value <- p.value[,2]
-    } else {
-        p.value <- adply(assay(data),1,
-                         function(x) {
-                             aux <- data_frame(beta=x[c(idx1,idx2)],
-                                               cluster=droplevels(
-                                                   colData(data)[c(idx1,idx2),
-                                                                 groupCol]))
-                             #aux <- na.omit(aux)
-                             #if(nrow(aux) == 0) return (NaN)
-                             pvalue(wilcoxsign_test(beta ~ cluster,
-                                                    data=aux,
-                                                    distribution = exact()))
-                         }, .progress = "text", .parallel = parallel
-        )
-        p.value <- p.value[,2]
-    }
+    p.value <- adply(assay(data),1,
+                     function(x) {
+                         aux <- data_frame(beta=x[c(idx1,idx2)],
+                                           cluster=droplevels(
+                                               colData(data)[c(idx1,idx2),
+                                                             groupCol]))
+                         wilcox.test(beta ~ cluster,
+                                     data=aux, #exact = TRUE,
+                                     paired = paired)$p.value
+                     }, .progress = "text", .parallel = parallel
+    )
+    p.value <- p.value[,2]
     ## Plot a histogram
-    message("Saved histogram_pvalues.png...")
-    png(filename = "histogram_pvalues.png")
-    hist(p.value)
-    dev.off()
+    if(save) {
+        message("Saved histogram_pvalues.png...")
+        png(filename = "histogram_pvalues.png")
+        hist(p.value)
+        dev.off()
+    }
 
     ## Calculate the adjusted p-values by using Benjamini-Hochberg
     ## (BH) method
     p.value.adj <- p.adjust(p.value, method = method)
 
     ## Plot a histogram
-    message("Saved histogram_pvalues_adj.png")
-    png(filename = "histogram_pvalues_adj.png")
-    hist(p.value.adj)
-    dev.off()
-
+    if(save) {
+        message("Saved histogram_pvalues_adj.png")
+        png(filename = "histogram_pvalues_adj.png")
+        hist(p.value.adj)
+        dev.off()
+    }
     #Saving the values into the object
-    colp <- paste("p.value", group1, group2, sep = ".")
+    group1.col <- gsub("[[:punct:]]| ", ".", group1)
+    group2.col <- gsub("[[:punct:]]| ", ".", group2)
+    colp <- paste("p.value",  group1.col,  group2.col, sep = ".")
     values(rowRanges(data))[,colp] <-  p.value
-    coladj <- paste("p.value.adj",group1,group2, sep = ".")
+    coladj <- paste("p.value.adj", group1.col,  group2.col, sep = ".")
     values(rowRanges(data))[,coladj] <-  p.value.adj
-    colp <- paste("p.value", group2, group1, sep = ".")
+    colp <- paste("p.value",  group2.col,  group1.col, sep = ".")
     values(rowRanges(data))[,colp] <-  p.value
-    coladj <- paste("p.value.adj",group2,group1, sep = ".")
+    coladj <- paste("p.value.adj", group2.col,  group1.col, sep = ".")
     values(rowRanges(data))[,coladj] <-  p.value.adj
 
     return(data)
@@ -665,8 +626,9 @@ calculate.pvalues <- function(data,
 #'    Observation: This function automatically is called by TCGAanalyse_DMR
 #' @param x x-axis data
 #' @param y y-axis data
-#' @param y.cut p-values threshold. Default: 0.01
-#' @param x.cut  x-axis threshold. Default: 0.0
+#' @param y.cut p-values threshold.
+#' @param x.cut  x-axis threshold. Default: 0.0 If you give only one number (e.g. 0.2) the cut-offs will be
+#'  -0.2 and 0.2. Or you can give diffenrent cutt-ofs as a vector (e.g. c(-0.3,0.4))
 #' @param filename Filename. Default: volcano.pdf, volcano.svg, volcano.png
 #' @param legend Legend title
 #' @param color vector of colors to be used in graph
@@ -702,12 +664,17 @@ calculate.pvalues <- function(data,
 #' TCGAVisualize_volcano(x,y,filename = NULL,y.cut = 10000000,x.cut=0.8,
 #'                       names = as.character(1:length(x)), legend = "Status",
 #'                       names.fill = TRUE, highlight = c("1","2"),show="both")
+#' TCGAVisualize_volcano(x,y,filename = NULL,y.cut = 10000000,x.cut=c(-0.3,0.8),
+#'                       names = as.character(1:length(x)), legend = "Status",
+#'                       names.fill = TRUE, highlight = c("1","2"),show="both")
 #' while (!(is.null(dev.list()["RStudioGD"]))){dev.off()}
 TCGAVisualize_volcano <- function(x,y,
                                   filename = "volcano.pdf",
                                   ylab =  expression(paste(-Log[10],
                                                            " (FDR corrected -P values)")),
-                                  xlab=NULL, title=NULL, legend=NULL,
+                                  xlab=NULL,
+                                  title="Volcano plot",
+                                  legend=NULL,
                                   label=NULL, xlim=NULL, ylim=NULL,
                                   color = c("black", "red", "green"),
                                   names=NULL,
@@ -734,7 +701,7 @@ TCGAVisualize_volcano <- function(x,y,
 
     if(is.null(label)) {
         label = c("1" = "Not Significant",
-                  "2" = "Up regulared",
+                  "2" = "Up regulated",
                   "3" = "Down regulated")
     } else  {
         names(label) <- as.character(1:3)
@@ -742,20 +709,30 @@ TCGAVisualize_volcano <- function(x,y,
     # get significant data
     sig <-  y < y.cut
     sig[is.na(sig)] <- FALSE
+
+    # If x.cut
+    if(length(x.cut) == 1) {
+        x.cut.min <- -x.cut
+        x.cut.max <- x.cut
+    }
+    if(length(x.cut) == 2) {
+        x.cut.min <- x.cut[1]
+        x.cut.max <- x.cut[2]
+    }
+
     # hypermethylated/up regulated samples compared to old state
-    up <- x  > x.cut
+    up <- x  > x.cut.max
     up[is.na(up)] <- FALSE
     if (any(up & sig)) threshold[up & sig] <- "2"
 
     # hypomethylated/ down regulated samples compared to old state
-    down <-  x < (-x.cut)
+    down <-  x < x.cut.min
     down[is.na(down)] <- FALSE
     if (any(down & sig)) threshold[down & sig] <- "3"
 
     if(!is.null(highlight)){
         idx <- which(names %in% highlight)
         if(length(idx) >0 ){
-            print(idx)
             threshold[which(names %in% highlight)]  <- "4"
             color <- c(color,highlight.color)
             names(color) <- as.character(1:4)
@@ -778,9 +755,9 @@ TCGAVisualize_volcano <- function(x,y,
                 environment = .e) +
         geom_point() +
         ggtitle(title) + ylab(ylab) + xlab(xlab) +
-        geom_vline(aes(xintercept = -x.cut),
-                   colour = "black",linetype = "dashed") +
-        geom_vline(aes(xintercept = x.cut),
+        geom_vline(aes(xintercept = x.cut.min),
+                   colour = "black", linetype = "dashed") +
+        geom_vline(aes(xintercept = x.cut.max),
                    colour = "black", linetype = "dashed") +
         geom_hline(aes(yintercept = -1 * log10(y.cut)),
                    colour = "black", linetype = "dashed") +
@@ -792,6 +769,7 @@ TCGAVisualize_volcano <- function(x,y,
                            panel.grid.major = element_blank(),
                            panel.grid.minor = element_blank(),
                            legend.text = element_text(size = 10),
+                           plot.title = element_text(hjust = 0.5),
                            axis.line.x=element_line(colour = "black"),
                            axis.line.y=element_line(colour = "black"),
                            legend.position="top",
@@ -887,7 +865,10 @@ TCGAVisualize_volcano <- function(x,y,
 #' the name of the group
 #' @param group2 In case our object has more than 2 groups, you should set
 #' the name of the group
-#' @param plot.filename Filename. Default: volcano.pdf, volcano.svg, volcano.png
+#' @param calculate.pvalues.probes In order to get the probes faster the user can select to calculate the pvalues
+#' only for the probes with a difference in DNA methylation. The default is to calculate to all probes.
+#' Possible values: "all", "differential". Default "all"
+#' @param plot.filename Filename. Default: volcano.pdf, volcano.svg, volcano.png. If set to FALSE, there will be no plot.
 #' @param legend Legend title
 #' @param color vector of colors to be used in graph
 #' @param title main title. If not specified it will be
@@ -907,13 +888,16 @@ TCGAVisualize_volcano <- function(x,y,
 #' @param overwrite Overwrite the pvalues and diffmean values if already in the object
 #' for both groups? Default: FALSE
 #' @param save Save object with results? Default: TRUE
+#' @param save.directory Directory to save the files. Default: working directory
 #' @param filename Name of the file to save the object.
 #' @param cores Number of cores to be used in the non-parametric test
 #' Default = groupCol.group1.group2.rda
 #' @import ggplot2
-#' @importFrom SummarizedExperiment colData rowRanges assay rowRanges<- values<-
+#' @importFrom SummarizedExperiment colData rowRanges assay rowRanges<- values<- SummarizedExperiment metadata<-
 #' @importFrom S4Vectors metadata
 #' @importFrom dplyr data_frame
+#' @importFrom methods as
+#' @import readr
 #' @import utils
 #' @export
 #' @return Volcano plot saved and the given data with the results
@@ -934,13 +918,17 @@ TCGAVisualize_volcano <- function(x,y,
 #'          assays=S4Vectors::SimpleList(counts=counts),
 #'          rowRanges=rowRanges,
 #'          colData=colData)
-#' SummarizedExperiment::colData(data)$group <- c(rep("group1",ncol(data)/2),
-#'                          rep("group2",ncol(data)/2))
-#' hypo.hyper <- TCGAanalyze_DMR(data, p.cut = 0.85,"group","group1","group2")
+#' SummarizedExperiment::colData(data)$group <- c(rep("group 1",ncol(data)/2),
+#'                          rep("group 2",ncol(data)/2))
+#' hypo.hyper <- TCGAanalyze_DMR(data, p.cut = 0.85,"group","group 1","group 2")
+#' SummarizedExperiment::colData(data)$group2 <- c(rep("group_1",ncol(data)/2),
+#'                          rep("group_2",ncol(data)/2))
+#' hypo.hyper <- TCGAanalyze_DMR(data, p.cut = 0.85,"group2","group_1","group_2")
 TCGAanalyze_DMR <- function(data,
                             groupCol=NULL,
                             group1=NULL,
                             group2=NULL,
+                            calculate.pvalues.probes = "all",
                             plot.filename = "methylation_volcano.pdf",
                             ylab =  expression(paste(-Log[10],
                                                      " (FDR corrected -P values)")),
@@ -961,6 +949,7 @@ TCGAanalyze_DMR <- function(data,
                             overwrite=FALSE,
                             cores = 1,
                             save=TRUE,
+                            save.directory = ".",
                             filename=NULL) {
     .e <- environment()
 
@@ -970,8 +959,8 @@ TCGAanalyze_DMR <- function(data,
         stop(paste0("Sorry, but I'm expecting a Summarized Experiment object, but I got a: ", class(data)))
     }
     # Check if object has NAs
-    if(any(is.na(assay(data)))){
-        stop(paste0("Sorry, but we found some NA in your data, please either remove/or replace them"))
+    if(any(rowSums(!is.na(assay(data))))== 0){
+        stop(paste0("Sorry, but we found some probes with NA for all samples in your data, please either remove/or replace them"))
     }
 
     if (is.null(groupCol)) {
@@ -1015,30 +1004,53 @@ TCGAanalyze_DMR <- function(data,
                    "Hypomethylated")
         label[2:3] <-  paste(label[2:3], "in", group2)
     }
-
-    diffcol <- paste("diffmean",group1,group2,sep = ".")
-    if (!(diffcol %in% colnames(values(rowRanges(data)))) || overwrite) {
-        data <- diffmean(data,groupCol, group1 = group1, group2 = group2)
-        if (!(diffcol %in% colnames(values(rowRanges(data))))) stop("Error!")
+    group1.col <- gsub("[[:punct:]]| ", ".", group1)
+    group2.col <- gsub("[[:punct:]]| ", ".", group2)
+    diffcol <- paste("diffmean", group1.col, group2.col,sep = ".")
+    if (!(diffcol %in% colnames(values(data))) || overwrite) {
+        data <- diffmean(data,groupCol, group1 = group1, group2 = group2, save = save)
+        if (!(diffcol %in% colnames(values(rowRanges(data))))) {
+            stop(paste0("Error! Not found ", diffcol))
+        }
     }
-    pcol <- paste("p.value.adj",group2,group1,sep = ".")
+
+    pcol <- paste("p.value.adj", group2.col, group1.col,sep = ".")
     if(!(pcol %in% colnames(values(data)))){
-        pcol <- paste("p.value.adj",group1,group2,sep = ".")
+        pcol <- paste("p.value.adj", group1.col, group2.col, sep = ".")
     }
     if (!(pcol %in% colnames(values(data))) | overwrite) {
-        data <- calculate.pvalues(data, groupCol, group1, group2,
-                                  paired = paired,
-                                  method = adj.method,
-                                  cores = cores)
+        if(calculate.pvalues.probes == "all"){
+            data <- calculate.pvalues(data, groupCol, group1, group2,
+                                      paired = paired,
+                                      method = adj.method,
+                                      cores = cores,
+                                      save = save)
+        } else  if(calculate.pvalues.probes == "differential"){
+            message(paste0("Caculating p-values only for probes with a difference of mean methylation equal or higher than ", diffmean.cut))
+            print(diffcol)
+            print(colnames(values(data)))
+            diff.probes <- abs(values(data)[,diffcol]) > diffmean.cut
+            nb <- length(which(diff.probes == TRUE))
+            if(nb == 0) {
+                warning("No probes differenly methylated")
+                return(NULL)
+            }
+            print(paste0("Number of probes differenly methylated: ",nb))
+            data <- calculate.pvalues(data[diff.probes,], groupCol, group1, group2,
+                                      paired = paired,
+                                      method = adj.method,
+                                      cores = cores,
+                                      save = save)
+        }
 
         # An error should not happen, if it happens (probably due to an incorret
         # user input) we will stop
-        if (!(pcol %in% colnames(values(data)))) stop("Error!")
+        if (!(pcol %in% colnames(values(data))))  stop(paste0("Error! Not found ", pcol))
     }
-    log <- paste0("TCGAanalyze_DMR.",group1,".",group2)
+    log <- paste0("TCGAanalyze_DMR.",gsub(" ", ".",group1),".",gsub(" ", ".",group2))
     assign(log,c("groupCol" = groupCol,
-                 "group1" = group1,
-                 "group2" = group2,
+                 "group1" = group1.col,
+                 "group2" = group2.col,
                  "plot.filename" = plot.filename,
                  "xlim" = xlim,
                  "ylim" = ylim,
@@ -1047,8 +1059,8 @@ TCGAanalyze_DMR <- function(data,
                  "paired" = "paired",
                  "adj.method" = adj.method))
     metadata(data)[[log]] <- (eval(as.symbol(log)))
-    statuscol <- paste("status",group1,group2,sep = ".")
-    statuscol2 <- paste("status",group2,group1,sep = ".")
+    statuscol <- paste("status",group1.col,group2.col,sep = ".")
+    statuscol2 <- paste("status",group2.col,group1.col,sep = ".")
     values(data)[,statuscol] <-  "Not Significant"
     values(data)[,statuscol2] <-  "Not Significant"
 
@@ -1072,44 +1084,66 @@ TCGAanalyze_DMR <- function(data,
     names <- NULL
     if(probe.names) names <- values(data)$probeID
 
-    TCGAVisualize_volcano(x = values(data)[,diffcol],
-                          y = values(data)[,pcol],
-                          filename = plot.filename,
-                          ylab =  ylab,
-                          xlab = xlab,
-                          title = title,
-                          legend= legend,
-                          label = label,
-                          names = names,
-                          x.cut = diffmean.cut,
-                          y.cut = p.cut)
-    if (is.null(filename)) filename <- paste0(paste(groupCol,group1,group2,"pcut",p.cut,"meancut",diffmean.cut, sep = "_"),".rda")
-    if (save) save(data,file = filename)
+    if(plot.filename != FALSE) {
+        TCGAVisualize_volcano(x = values(data)[,diffcol],
+                              y = values(data)[,pcol],
+                              filename = plot.filename,
+                              ylab =  ylab,
+                              xlab = xlab,
+                              title = title,
+                              legend= legend,
+                              label = label,
+                              names = names,
+                              x.cut = diffmean.cut,
+                              y.cut = p.cut)
+    }
+    if (save) {
 
-    # saving results into a csv file
-    csv <- paste0(paste("DMR_results",groupCol,group1,group2, "pcut",p.cut,"meancut",diffmean.cut,  sep = "_"),".csv")
-    message(paste0("Saving the results also in a csv file:"), csv)
-    df <- values(data)
-    if (any(hyper & sig)) df[hyper & sig,statuscol] <- paste("Hypermethylated","in", group2)
-    if (any(hyper & sig)) df[hyper & sig,statuscol2] <- paste("Hypomethylated","in", group1)
-    if (any(hypo & sig)) df[hypo & sig,statuscol] <- paste("Hypomethylated","in", group2)
-    if (any(hypo & sig)) df[hypo & sig,statuscol2] <- paste("Hypermethylated","in", group1)
-    # get metadata not created by this function
-    idx <- grep("mean|status|value",colnames(df),invert = TRUE)
-    write.csv2(df[,
-                  c(colnames(df)[idx],
-                    paste("mean",group1,sep = "."),
-                    paste("mean",group2,sep = "."),
-                    paste("diffmean",group1,group2,sep = "."),
-                    paste("p.value",group1,group2,sep = "."),
-                    paste("p.value.adj",group1,group2,sep = "."),
-                    statuscol,
-                    paste("diffmean",group2,group1,sep = "."),
-                    paste("p.value",group2,group1,sep = "."),
-                    paste("p.value.adj",group2,group1,sep = "."),
-                    statuscol2)
-                  ],file =  csv)
+        # saving results into a csv file
+        csv <- paste0(paste("DMR_results",
+                            gsub("_",".",groupCol),
+                            group1.col,
+                            group2.col,
+                            "pcut",p.cut,"meancut",diffmean.cut,  sep = "_"),".csv")
+        dir.create(save.directory,showWarnings = FALSE,recursive = TRUE)
+        csv <- file.path(save.directory,csv)
+        message(paste0("Saving the results also in a csv file: "), csv)
+        df <- values(data)
+        if (any(hyper & sig)) df[hyper & sig,statuscol] <- paste("Hypermethylated","in", group2)
+        if (any(hyper & sig)) df[hyper & sig,statuscol2] <- paste("Hypomethylated","in", group1)
+        if (any(hypo & sig)) df[hypo & sig,statuscol] <- paste("Hypomethylated","in", group2)
+        if (any(hypo & sig)) df[hypo & sig,statuscol2] <- paste("Hypermethylated","in", group1)
+        # get metadata not created by this function
+        idx <- grep("mean|status|value",colnames(df),invert = TRUE)
 
+        write_csv(as.data.frame(df[,
+                                   c(colnames(df)[idx],
+                                     paste("mean", group1.col,sep = "."),
+                                     paste("mean", group2.col,sep = "."),
+                                     paste("diffmean", group1.col, group2.col, sep = "."),
+                                     paste("p.value", group1.col, group2.col, sep = "."),
+                                     paste("p.value.adj", group1.col, group2.col, sep = "."),
+                                     statuscol,
+                                     paste("diffmean",group2.col,group1.col,sep = "."),
+                                     paste("p.value",group2.col,group1.col,sep = "."),
+                                     paste("p.value.adj",group2.col,group1.col,sep = "."),
+                                     statuscol2)
+                                   ]),path =  csv)
+        if (is.null(filename)) {
+            filename <- paste0(paste(
+                gsub("_",".",groupCol),
+                group1.col,
+                group2.col,
+                "pcut",p.cut,
+                "meancut",diffmean.cut,
+                sep = "_"),
+                ".rda")
+            filename <- file.path(save.directory, filename)
+        }
+
+        # saving results into R object
+        save(data, file = filename)
+    }
     return(data)
 }
 
@@ -1174,6 +1208,7 @@ TCGAanalyze_DMR <- function(data,
 #' @export
 #' @return Save a starburst plot
 #' @examples
+#' library(SummarizedExperiment)
 #' nrows <- 20000; ncols <- 20
 #' counts <- matrix(runif(nrows * ncols, 1, 1e4), nrows)
 #' ranges <- GenomicRanges::GRanges(rep(c("chr1", "chr2"), c(5000, 15000)),
@@ -1192,10 +1227,10 @@ TCGAanalyze_DMR <- function(data,
 #' exp <- data.frame(row.names=sprintf("ID%03d", 1:20000),
 #'                   logFC=runif(20000, -5, 5),
 #'                   FDR=runif(20000, 0.01, 1))
-#' SummarizedExperiment::rowRanges(met)$diffmean.g1.g2 <- c(runif(20000, -0.1, 0.1))
-#' SummarizedExperiment::rowRanges(met)$diffmean.g2.g1 <- -1*(SummarizedExperiment::rowRanges(met)$diffmean.g1.g2)
-#' SummarizedExperiment::rowRanges(met)$p.value.g1.g2 <- c(runif(20000, 0, 1))
-#' SummarizedExperiment::rowRanges(met)$p.value.adj.g1.g2 <- c(runif(20000, 0, 1))
+#' rowRanges(met)$diffmean.g1.g2 <- c(runif(20000, -0.1, 0.1))
+#' rowRanges(met)$diffmean.g2.g1 <- -1*(rowRanges(met)$diffmean.g1.g2)
+#' rowRanges(met)$p.value.g1.g2 <- c(runif(20000, 0, 1))
+#' rowRanges(met)$p.value.adj.g1.g2 <- c(runif(20000, 0, 1))
 #' result <- TCGAvisualize_starburst(met,exp,
 #'                                   exp.p.cut = 0.05, met.p.cut = 0.05,
 #'                                   group1="g1",group2="g2",
@@ -1246,6 +1281,9 @@ TCGAvisualize_starburst <- function(met,
 {
     .e <- environment()
 
+    group1.col <- gsub("[[:punct:]]| ", ".",group1)
+    group2.col <- gsub("[[:punct:]]| ", ".",group2)
+
     if(is.null(color)) color <- c("#000000", "#E69F00","#56B4E9", "#009E73",
                                   "red", "#0072B2","#D55E00", "#CC79A7",
                                   "purple")
@@ -1264,21 +1302,43 @@ TCGAvisualize_starburst <- function(met,
     }
 
     # Preparing methylation
-    pcol <- paste("p.value.adj",group1,group2,sep = ".")
+    pcol <- gsub("[[:punct:]]| ", ".",paste("p.value.adj",group1,group2,sep = "."))
     if(!(pcol %in%  colnames(met))){
-        pcol <- paste("p.value.adj",group2,group1,sep = ".")
+        pcol <- gsub("[[:punct:]]| ", ".",paste("p.value.adj",group2,group1,sep = "."))
     }
     if(!(pcol %in%  colnames(met))){
         stop("Error! p-values adjusted not found. Please, run TCGAanalyze_DMR")
     }
 
-    # somehow the merge changes the names with - to .
-    pcol <- gsub(" |-",".",pcol)
+    # Methylation matrix and expression matrix should have the same name column for merge
+    idx <- grep("Gene_symbol",colnames(met),ignore.case = TRUE)
+    colnames(met)[idx] <- "Gene_symbol"
 
-    aux <- strsplit(row.names(exp),"\\|")
-    exp$Gene_Symbol  <- unlist(lapply(aux,function(x) x[1]))
-    volcano <- merge(met, exp, by = "Gene_Symbol")
-    volcano$ID <- paste(volcano$Gene_Symbol,
+    # Check if gene symbol columns exists
+    if(!any(grepl("Gene_symbol",colnames(exp),ignore.case = FALSE))) {
+        if("mRNA" %in% colnames(exp)) {
+            if(all(grepl("\\|",exp$mRNA))) {
+                exp$Gene_symbol <- unlist(lapply(strsplit(exp$mRNA,"\\|"),function(x) x[2]))
+            } else {
+                exp$Gene_symbol <- exp$mRNA
+            }
+        } else {
+            aux <- rownames(exp)
+            if(all(grepl("\\|",aux))) {
+                exp$Gene_symbol <- unlist(lapply(strsplit(aux,"\\|"),function(x) x[2]))
+            } else {
+                exp$Gene_symbol <- aux
+            }
+        }
+    } else {
+        # Check if it has the same pattern
+        idx <- grep("Gene_symbol",colnames(exp),ignore.case = TRUE)
+        colnames(exp)[idx] <- "Gene_symbol"
+    }
+
+
+    volcano <- merge(met, exp, by = "Gene_symbol")
+    volcano$ID <- paste(volcano$Gene_symbol,
                         volcano$probeID, sep = ".")
 
     # Preparing gene expression
@@ -1287,7 +1347,7 @@ TCGAvisualize_starburst <- function(met,
     volcano[volcano$logFC > 0, "geFDR2"] <-
         -1 * volcano[volcano$logFC > 0, "geFDR"]
 
-    diffcol <- gsub(" |-",".",paste("diffmean",group1,group2,sep = "."))
+    diffcol <- gsub("[[:punct:]]| ", ".",paste("diffmean",group1,group2,sep = "."))
     volcano$meFDR <- log10(volcano[,pcol])
     volcano$meFDR2 <- volcano$meFDR
     idx <- volcano[,diffcol] > 0
@@ -1427,7 +1487,7 @@ TCGAvisualize_starburst <- function(met,
             p <- p + geom_label_repel(
                 data = significant,
                 aes(x = significant$meFDR2, y =  significant$geFDR2,
-                    label = significant$Gene_Symbol, fill = as.factor(significant$starburst.status)),
+                    label = significant$Gene_symbol, fill = as.factor(significant$starburst.status)),
                 size = 4, show.legend = FALSE,
                 fontface = 'bold', color = 'white',
                 box.padding = unit(0.35, "lines"),
@@ -1437,7 +1497,7 @@ TCGAvisualize_starburst <- function(met,
             p <- p + geom_text_repel(
                 data = significant,
                 aes(x = significant$meFDR2, y =  significant$geFDR2,
-                    label = significant$Gene_Symbol, fill = significant$starburst.status),
+                    label = significant$Gene_symbol, fill = significant$starburst.status),
                 size = 4, show.legend = FALSE,
                 fontface = 'bold', color = 'black',
                 point.padding = unit(0.3, "lines"),
@@ -1473,7 +1533,7 @@ TCGAvisualize_starburst <- function(met,
               axis.line.y=element_line(colour = "black"),
               legend.position="top",
               legend.key = element_rect(colour = 'white'),
-              plot.title = element_text(face = "bold", size = 16),
+              plot.title = element_text(face = "bold", size = 16,hjust = 0.5),
               legend.text = element_text(size = 14),
               legend.title = element_text(size = 14),
               axis.text= element_text(size = 14),

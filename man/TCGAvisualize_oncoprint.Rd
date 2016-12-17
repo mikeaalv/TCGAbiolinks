@@ -5,10 +5,11 @@
 \title{Creating a oncoprint}
 \usage{
 TCGAvisualize_oncoprint(mut, genes, filename, color,
-  annotation.position = "bottom", annotation, height,
+  annotation.position = "bottom", annotation, height, width = 10,
   rm.empty.columns = FALSE, show.column.names = FALSE,
-  show.row.barplot = TRUE, label.title = "Mutation", label.font.size = 16,
-  rows.font.size = 16, dist.col = 0.5, dist.row = 0.5,
+  show.row.barplot = TRUE, label.title = "Mutation",
+  column.names.size = 8, label.font.size = 16, rows.font.size = 16,
+  dist.col = 0.5, dist.row = 0.5, information = "Variant_Type",
   row.order = FALSE, heatmap.legend.side = "bottom",
   annotation.legend.side = "bottom")
 }
@@ -28,6 +29,8 @@ Should have a column bcr_patient_barcode with the same ID of the mutation object
 
 \item{height}{pdf height}
 
+\item{width}{pdf width}
+
 \item{rm.empty.columns}{If there is no alteration in that sample, whether remove it on the oncoprint}
 
 \item{show.column.names}{Show column names? Default: FALSE}
@@ -35,6 +38,8 @@ Should have a column bcr_patient_barcode with the same ID of the mutation object
 \item{show.row.barplot}{Show barplot annotation on rows?}
 
 \item{label.title}{Title of the label}
+
+\item{column.names.size}{Size of the fonts of the columns names}
 
 \item{label.font.size}{Size of the fonts}
 
@@ -44,7 +49,13 @@ Should have a column bcr_patient_barcode with the same ID of the mutation object
 
 \item{dist.row}{distance between rows in the plot}
 
-\item{row.order}{Order the genes (rows). Genes with more mutations will be in the first rows}
+\item{information}{Which column to use as informastion from MAF.
+Options: 1) "Variant_Classification" (The information will be "Frame_Shift_Del", "Frame_Shift_Ins",
+        "In_Frame_Del", "In_Frame_Ins", "Missense_Mutation",  "Nonsense_Mutation",
+             "Nonstop_Mutation",  "RNA",  "Silent" ,  "Splice_Site",  "Targeted_Region",  "Translation_Start_Site")
+2) "Variant_Type" (The information will be INS,DEL,SNP)}
+
+\item{row.order}{Order the genes (rows) Default:FALSE. Genes with more mutations will be in the first rows}
 
 \item{heatmap.legend.side}{Position of the heatmap legend}
 
@@ -57,7 +68,7 @@ A oncoprint plot
 Creating a oncoprint
 }
 \examples{
-mut <- GDCquery_Maf(tumor = "ACC")
+mut <- GDCquery_Maf(tumor = "ACC", pipelines = "mutect")
 TCGAvisualize_oncoprint(mut = mut, genes = mut$Hugo_Symbol[1:10], rm.empty.columns = TRUE)
 TCGAvisualize_oncoprint(mut = mut, genes = mut$Hugo_Symbol[1:10],
                  filename = "onco.pdf",

@@ -47,16 +47,22 @@ TCGAanalyze_Clustering <- function(tabDF, method,  methodHC = "ward.D2"){
 #' @param height Image height
 #' @param datatype is a string from RangedSummarizedExperiment assay
 #' @importFrom grDevices dev.list
+#' @importFrom SummarizedExperiment assays
 #' @export
 #' @return Plot with array array intensity correlation and boxplot of correlation samples by samples
-TCGAanalyze_Preprocessing<- function(object,
+TCGAanalyze_Preprocessing <- function(object,
                                      cor.cut = 0,
                                      filename = NULL,
                                      width = 500,
-                                     height =500,
-                                     datatype = "raw_counts"){
+                                     height = 500,
+                                     datatype = names(assays(object))[1]){
 
     if (!(is.null(dev.list()["RStudioGD"]))){dev.off()}
+
+    # This is a work around for raw_counts and raw_count
+    if(grepl("raw_count",datatype) & any(grepl("raw_count",names(assays(object))))) datatype <- names(assays(object))[grepl("raw_count",names(assays(object)))]
+    if(!any(grepl(datatype, names(assays(object))))) stop(paste0(datatype, " not found in the assay list: ",
+                                                                 paste(names(assays(object)),collapse = ", "),"\n  Please set the correct datatype argument."))
 
     if(is.null(filename)) filename <- "PreprocessingOutput.png"
     png(filename, width = width, height = height)
@@ -163,14 +169,12 @@ TCGAanalyze_Preprocessing<- function(object,
 #' @export
 #' @return table with survival genes pvalues from KM.
 #' @examples
-#' \dontrun{
-#'  clinical_patient_Cancer <- TCGAquery_clinic("brca","clinical_patient")
+#'  clinical_patient_Cancer <- GDCquery_clinic("TCGA-BRCA","clinical")
 #'  dataBRCAcomplete <- log2(BRCA_rnaseqv2)
 #'  # Selecting only 10 genes for example
 #'  dataBRCAcomplete <- dataBRCAcomplete[1:10,]
 #'  tabSurvKM<-TCGAanalyze_SurvivalKM(clinical_patient_Cancer,dataBRCAcomplete,
 #'  Genelist = rownames(dataBRCAcomplete), Survresult = FALSE,ThreshTop=0.67,ThreshDown=0.33)
-#' }
 TCGAanalyze_SurvivalKM<-function(clinical_patient,dataGE,Genelist, Survresult,
                                  ThreshTop=0.67, ThreshDown=0.33,p.cut=0.05){
 
@@ -182,6 +186,7 @@ TCGAanalyze_SurvivalKM<-function(clinical_patient,dataGE,Genelist, Survresult,
     dataNormal <- dataGE[Genelist,samplesNT]
     colnames(dataCancer)  <- substr(colnames(dataCancer),1,12)
     cfu<-clinical_patient[clinical_patient[,"bcr_patient_barcode"] %in% substr(colnames(dataCancer),1,12),]
+    if("days_to_last_followup" %in% colnames(cfu)) colnames(cfu)[grep("days_to_last_followup",colnames(cfu))] <- "days_to_last_follow_up"
     cfu <- as.data.frame(subset(cfu, select=c("bcr_patient_barcode","days_to_death","days_to_last_follow_up","vital_status"))  )
     cfu[which(cfu$vital_status=="Alive"),"days_to_death"]<-"-Inf"
     cfu[which(cfu$vital_status=="Dead"),"days_to_last_follow_up"]<-"-Inf"
@@ -275,38 +280,32 @@ TCGAanalyze_SurvivalKM<-function(clinical_patient,dataGE,Genelist, Survresult,
             if(  dim(cfu_onlyDOWN)[1] >= 1) {
                 ttime_only_down <- cfu_onlyDOWN[, "days_to_death"]
                 deads_down<- sum(ttime_only_down > 0)
+            } else {
+                deads_down <- 0
             }
 
-            else {deads_down <-0 }
-
-
             #print(paste("deaths =",deads_complete))
-            tabSurv_Matrix[i,"Cancer Deaths"]<-deads_complete
-            tabSurv_Matrix[i,"Cancer Deaths with Top"]<- deads_top
-            tabSurv_Matrix[i,"Cancer Deaths with Down"]<- deads_down
+            tabSurv_Matrix[i,"Cancer Deaths"] <- deads_complete
+            tabSurv_Matrix[i,"Cancer Deaths with Top"] <- deads_top
+            tabSurv_Matrix[i,"Cancer Deaths with Down"] <- deads_down
 
-            tabSurv_Matrix[i,"Mean Normal"]<-  mean(mRNAselected_values_normal)
+            tabSurv_Matrix[i,"Mean Normal"] <- mean(mRNAselected_values_normal)
 
-
-
-
-
-            dataCancer_onlyTop_sample<-dataCancer[,samples_top_mRNA_selected]
-            dataCancer_onlyTop_sample_mRNASelected<- dataCancer_onlyTop_sample[rownames(dataCancer_onlyTop_sample) == mRNAselected,]
+            dataCancer_onlyTop_sample <- dataCancer[,samples_top_mRNA_selected]
+            dataCancer_onlyTop_sample_mRNASelected <- dataCancer_onlyTop_sample[rownames(dataCancer_onlyTop_sample) == mRNAselected,]
 
 
-            dataCancer_onlyDown_sample<-dataCancer[,samples_down_mRNA_selected]
-            dataCancer_onlyDown_sample_mRNASelected<- dataCancer_onlyDown_sample[rownames(dataCancer_onlyDown_sample) == mRNAselected,]
+            dataCancer_onlyDown_sample <- dataCancer[,samples_down_mRNA_selected]
+            dataCancer_onlyDown_sample_mRNASelected <- dataCancer_onlyDown_sample[rownames(dataCancer_onlyDown_sample) == mRNAselected,]
 
 
-            tabSurv_Matrix[i,"Mean Tumor Top"]<- mean(dataCancer_onlyTop_sample_mRNASelected)
-            tabSurv_Matrix[i,"Mean Tumor Down"]<- mean(dataCancer_onlyDown_sample_mRNASelected)
+            tabSurv_Matrix[i,"Mean Tumor Top"] <- mean(dataCancer_onlyTop_sample_mRNASelected)
+            tabSurv_Matrix[i,"Mean Tumor Down"] <- mean(dataCancer_onlyDown_sample_mRNASelected)
 
             ttime[!status] <- as.numeric(cfu[!status, "days_to_last_follow_up"])
             #ttime[!status] <- cfu[!status, "days_to_last_followup"]
 
-            ttime[which(ttime== -Inf)]<-0
-
+            ttime[which(ttime== -Inf)] <- 0
 
             ttime <- Surv(ttime, status)
             rownames(ttime) <- rownames(cfu)
@@ -317,17 +316,8 @@ TCGAanalyze_SurvivalKM<-function(clinical_patient,dataGE,Genelist, Survresult,
 
             #   plot(survfit(ttime ~ c(rep("top", nrow(cfu_onlyTOP)), rep("down", nrow(cfu_onlyDOWN)))), col = c("red", "green"),main= mRNAselected)
 
-
-
-
-
-            legendHigh<- paste(mRNAselected,"High")
-            legendLow<- paste(mRNAselected,"Low")
-
-
-
-
-
+            legendHigh <- paste(mRNAselected,"High")
+            legendLow  <- paste(mRNAselected,"Low")
 
             tabSurv<-survdiff(ttime  ~ c(rep("top", nrow(cfu_onlyTOP)), rep("down", nrow(cfu_onlyDOWN)) ))
             tabSurv_chis<-unlist(tabSurv)$chisq
@@ -893,12 +883,15 @@ TCGAanalyze_EA <- function(GeneName,RegulonList,TableEnrichment,
     table_pathway_enriched <- table_pathway_enriched[table_pathway_enriched[,"FDR"] < FDRThresh ,]
     table_pathway_enriched <- table_pathway_enriched[order(table_pathway_enriched[,"FDR"],decreasing = FALSE),]
 
-    tmp <- table_pathway_enriched[1:topPathways,]
-    tmp <- paste(tmp[,"Pathway"],"; FDR= ", format(tmp[,"FDR"],digits = 3),"; (ng="   ,round(tmp[,"GenesInPathway"]),"); (ncommon=", format(tmp[,"CommonGenesPathway"],digits = 2), ")" ,sep = "")
-    tmp <- as.matrix(tmp)
-    topPathways_tab[1,] <- tmp
-    rm(tmp)
-
+    if(nrow(table_pathway_enriched) > 0) {
+        tmp <- table_pathway_enriched
+        tmp <- paste(tmp[,"Pathway"],"; FDR= ", format(tmp[,"FDR"],digits = 3),"; (ng="   ,round(tmp[,"GenesInPathway"]),"); (ncommon=", format(tmp[,"CommonGenesPathway"],digits = 2), ")" ,sep = "")
+        tmp <- as.matrix(tmp)
+        topPathways_tab <- topPathways_tab[,1:nrow(table_pathway_enriched)]
+        topPathways_tab[1,] <- tmp
+    } else {
+        topPathways_tab <- NA
+    }
     return(topPathways_tab)
 }
 
@@ -987,7 +980,7 @@ TCGAanalyze_DEA_Affy <- function(AffySet, FC.cut = 0.01){
 }
 
 
-#' @title Generate network 
+#' @title Generate network
 #' @description TCGAanalyze_analyseGRN perform gene regulatory network.
 #' @param TFs a vector of genes.
 #' @param normCounts is a matrix of gene expression with genes in rows and samples in columns.
@@ -997,20 +990,73 @@ TCGAanalyze_DEA_Affy <- function(AffySet, FC.cut = 0.01){
 #' @export
 #' @return an adjacent matrix
 TCGAanalyze_analyseGRN<- function(TFs, normCounts,kNum) {
-  
-  MRcandidates <- intersect(rownames(normCounts),TFs) 
-  
+
+  MRcandidates <- intersect(rownames(normCounts),TFs)
+
   # Mutual information between TF and genes
   sampleNames <- colnames(normCounts)
   geneNames <- rownames(normCounts)
-  
+
   messageMI_TFgenes <- paste("Estimation of MI among [", length(MRcandidates), " TRs and ", nrow(normCounts), " genes].....", sep = "")
   timeEstimatedMI_TFgenes1 <- length(MRcandidates)*nrow(normCounts)/1000
   timeEstimatedMI_TFgenes <- format(timeEstimatedMI_TFgenes1*ncol(normCounts)/17000, digits = 2)
   messageEstimation <- print(paste("I Need about ", timeEstimatedMI_TFgenes, "seconds for this MI estimation. [Processing 17000k elements /s]  "))
-  
+
   system.time(miTFGenes <- knnmi.cross(normCounts[MRcandidates, ], normCounts, k = kNum))
-  
+
   return(miTFGenes)
-  
+
 }
+
+#' @title Generate pathview graph
+#' @description TCGAanalyze_Pathview pathway based data integration and visualization.
+#' @param dataDEGs dataDEGs
+#' @param pathwayKEGG pathwayKEGG
+#' @importFrom clusterProfiler bitr
+#' @importFrom pathview pathview
+#' @export
+#' @return an adjacent matrix
+TCGAanalyze_Pathview <- function(dataDEGs, pathwayKEGG = "hsa05200" ){
+
+  # Converting Gene symbol to gene ID
+  eg = as.data.frame(bitr(dataDEGsFiltLevel$mRNA,
+                          fromType="SYMBOL",
+                          toType="ENTREZID",
+                          OrgDb="org.Hs.eg.db"))
+  eg <- eg[!duplicated(eg$SYMBOL),]
+  dataDEGsFiltLevel <- dataDEGsFiltLevel[dataDEGsFiltLevel$mRNA %in% eg$SYMBOL,]
+  dataDEGsFiltLevel <- dataDEGsFiltLevel[order(dataDEGsFiltLevel$mRNA,decreasing=FALSE),]
+  eg <- eg[order(eg$SYMBOL,decreasing=FALSE),]
+  dataDEGsFiltLevel$GeneID <- eg$ENTREZID
+  dataDEGsFiltLevel_sub <- subset(dataDEGsFiltLevel, select = c("GeneID", "logFC"))
+  genelistDEGs <- as.numeric(dataDEGsFiltLevel_sub$logFC)
+  names(genelistDEGs) <- dataDEGsFiltLevel_sub$GeneID
+
+  hsa05200 <- pathview(gene.data  = genelistDEGs,
+                       pathway.id = pathwayKEGG,
+                       species    = "hsa",
+                       limit      = list(gene=as.integer(max(abs(genelistDEGs)))))
+
+}
+
+
+#' @title infer gene regulatory networks
+#' @description TCGAanalyze_networkInference taking expression data as input, this will return an adjacency matrix of interactions
+#' @param data expression data, genes in columns, samples in rows
+#' @param optionMethod inference method, chose from aracne, c3net, clr and mrnet
+#' @importFrom c3net c3net
+#' @importFrom minet minet
+#' @export
+#' @return an adjacent matrix
+TCGAanalyze_networkInference <- function(data, optionMethod = "clr" ){
+  # Converting Gene symbol to gene ID
+
+  if(optionMethod == "c3net"){
+    net <- c3net(t(data))
+  }else{
+    net <- minet(data, method = optionMethod)
+  }
+  return(net)
+
+}
+

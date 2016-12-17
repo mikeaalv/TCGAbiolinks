@@ -347,7 +347,7 @@ references:
    year: 2016 
 
 vignette: >
-  %\VignetteIndexEntry{Vignette Title}
+  %\VignetteIndexEntry{Working with TCGAbiolinks package}
   %\VignetteEngine{knitr::rmarkdown}
   \usepackage[utf8]{inputenc}
 ---
@@ -456,17 +456,49 @@ with the following arguments:
 The next subsections will detail each of the search arguments.
 Below, we show some search examples:
 ```{r, eval = FALSE}
+#---------------------------------------------------------------
+#  For available entries and combinations please se table below
+#---------------------------------------------------------------
+
+# Gene expression aligned against Hg38
 query <- GDCquery(project = "TARGET-AML",
                   data.category = "Transcriptome Profiling",
                   data.type = "Gene Expression Quantification", 
                   workflow.type = "HTSeq - Counts")
 
-# Using legacy
+
+# Using sample type to get only Primary solid Tumor samples and Solid Tissue Normal
+query.mirna <- GDCquery(project = "TCGA-ACC", 
+                        data.category = "Transcriptome Profiling", 
+                        data.type = "miRNA Expression Quantification",
+                        sample.type = c("Primary solid Tumor","Solid Tissue Normal"))
+
+# Example Using legacy to accessing hg19 and filtering by barcode
 query <- GDCquery(project = "TCGA-GBM",
                   data.category = "DNA methylation", 
                   platform = "Illumina Human Methylation 27", 
                   legacy = TRUE,
                   barcode = c("TCGA-02-0047-01A-01D-0186-05","TCGA-06-2559-01A-01D-0788-05"))
+
+# Gene expression aligned against hg19.
+query.exp.hg19 <- GDCquery(project = "TCGA-GBM",
+                  data.category = "Gene expression",
+                  data.type = "Gene expression quantification",
+                  platform = "Illumina HiSeq", 
+                  file.type  = "normalized_results",
+                  experimental.strategy = "RNA-Seq",
+                  barcode = c("TCGA-14-0736-02A-01R-2005-01", "TCGA-06-0211-02A-02R-2005-01"),
+                  legacy = TRUE)
+
+# Searching idat file for DNA methylation
+query <- GDCquery(project = "TCGA-OV",
+                  data.category = "Raw microarray data",
+                  data.type = "Raw intensities", 
+                  experimental.strategy = "Methylation array", 
+                  legacy = TRUE,
+                  file.type = ".idat",
+                  platform = "Illumina Human Methylation 450")
+
 ```
 
 The list of projects is below:
@@ -487,31 +519,32 @@ Please, not that these tables are still incomplete.
 
 ## Harmonized data
 
-| Data.category               | Data.type                         | Workflow Type   |
-|-----------------------------|-----------------------------------|-----------------|
-| Transcriptome Profiling     | Gene Expression Quantification    | HTSeq - Counts  |
-|                             |                                   | HTSeq - FPKM-UQ |
-|                             |                                   | HTSeq - FPKM    |
-|                             | Isoform Expression Quantification | -               |
-|                             | miRNA Expression Quantification   | -               |
-| Copy number variation       | Copy Number Segment               |                 |
-|                             | Masked Copy Number Segment        |                 |
-| Simple Nucleotide Variation |                                   |                 |
-| Raw Sequencing Data         |                                   |                 |
-| Biospecimen                 |                                   |                 |
-| Clinical                    |                                   |                 |
+| data.category               | data.type                         |  workflow.type   | platform |
+|-----------------------------|-----------------------------------|-----------------|----------|
+| Transcriptome Profiling     | Gene Expression Quantification    | HTSeq - Counts  |          |
+|                             |                                   | HTSeq - FPKM-UQ |          |
+|                             |                                   | HTSeq - FPKM    |          |
+|                             | Isoform Expression Quantification | -               |          |
+|                             | miRNA Expression Quantification   | -               |          |
+| Copy Number Variation       | Copy Number Segment               |                 |          |
+|                             | Masked Copy Number Segment        |                 |          |
+| Simple Nucleotide Variation |                                   |                 |          |
+| Raw Sequencing Data         |                                   |                 |          |
+| Biospecimen                 |                                   |                 |          |
+| Clinical                    |                                   |                 |          |
+| DNA Methylation             |                                   |                 | Illumina Human Methylation 450| 
+|                             |                                   |                 | Illumina Human Methylation 27 |    
 
 ## Legacy data
-| Data.category               | Data.type                         | Platform                            | file.type          |
+| data.category               | data.type                         | platform                            | file.type          |
 |-----------------------------|-----------------------------------|-------------------------------------|--------------------|
-| Transcriptome Profiling     |                                   |                                     |                    |
 | Copy number variation       | -                                 | Affymetrix SNP Array 6.0            | nocnv_hg18.seg     |
 |                             | -                                 | Affymetrix SNP Array 6.0            | hg18.seg           |
 |                             | -                                 | Affymetrix SNP Array 6.0            | nocnv_hg19.seg     |
 |                             | -                                 | Affymetrix SNP Array 6.0            | hg19.seg           |
 |                             | -                                 | Illumina HiSeq                      | -                  |
-| Simple Nucleotide Variation |                                   |                                     |                    |
-| Raw Sequencing Data         |                                   |                                     |                    |
+| Simple nucleotide variation |                                   |                                     |                    |
+| Raw sequencing data         |                                   |                                     |                    |
 | Biospecimen                 |                                   |                                     |                    |
 | Clinical                    |                                   |                                     |                    |
 | Protein expression          |                                   | MDA RPPA Core                       | -                  |
@@ -523,50 +556,63 @@ Please, not that these tables are still incomplete.
 |                             |                                   | HuEx-1_0-st-v2                      | FIRMA.txt          |
 |                             |                                   |                                     | gene.txt           |
 |                             | Isoform expression quantification |                                     |                    |
-|                             | miRNA gene quantification         |                                     |                    |
+|                             | miRNA gene quantification         |                                     | hg19.mirna         |
+|                             |                                   |                                     | mirna              |
 |                             | Exon junction quantification      |                                     |                    |
 |                             | Exon quantification               |                                     |                    |
-|                             | miRNA isoform quantification      |                                     |                    |
-|                             |                                   |                                     |                    |
-| DNA methylation             |                                   | Illumina Human Methylation 450      | -           |
-|                             |                                   | Illumina Human Methylation 27       | -           |
-|                             |                                   | Illumina DNA Methylation OMA003 CPI | -           |
-|                             |                                   | Illumina DNA Methylation OMA002 CPI | -           |
+|                             | miRNA isoform quantification      |                                     | hg19.isoform       |
+|                             |                                   |                                     | isoform            |
+| DNA methylation             |                                   | Illumina Human Methylation 450      | -                  |
+|                             |                                   | Illumina Human Methylation 27       | -                  |
+|                             |                                   | Illumina DNA Methylation OMA003 CPI | -                  |
+|                             |                                   | Illumina DNA Methylation OMA002 CPI | -                  |
 |                             |                                   | Illumina Hi Seq                     |                    |
-| Raw Microarray Data         |                                   |                                     |                    |
-| Structural Rearrangement    |                                   |                                     |                    |
+| Raw microarray data         |  Raw intensities                  | Illumina Human Methylation 450      |  idat              |
+|                             |                                   | Illumina Human Methylation 27       |  idat              |
 | Other                       |                                   |                                     |                    |
 
 ## `GDCquery_maf`: Working with mutation files.
 
 In order to download the Mutation Annotation Format (MAF), we provide the user
 with the `GDCquery_maf` function. Briefly, it will get the open acess maf files from
-[https://gdc-docs.nci.nih.gov/Data/Release_Notes/Data_Release_Notes/](https://gdc-docs.nci.nih.gov/Data/Release_Notes/Data_Release_Notes/)
+[https://gdc-docs.nci.nih.gov/Data/Release_Notes/Data_Release_Notes/](https://gdc-docs.nci.nih.gov/Data/Release_Notes/Data_Release_Notes/).
+Four separate variant calling pipelines are implemented for GDC data harmonization which are described [here](https://gdc-docs.nci.nih.gov/Data/Bioinformatics_Pipelines/DNA_Seq_Variant_Calling_Pipeline/)
 
 The arguments that will be used to filter the data are:
 
-* tumor 
+* tumor: A TCGA project without the TCGA- prefix.
 * save.csv: Save the maf as csv file
+* pipelines: Four separate variant calling pipelines are implemented for GDC data harmonization. Options: muse, varscan2, somaticsniper, mutect. 
 
 ```{r, eval = FALSE}
-mutation <- GDCquery_Maf(tumor = "LGG")
-mutation <- GDCquery_Maf(tumor = "LGG", save.csv = TRUE)
+acc.muse.maf <- GDCquery_Maf("ACC", pipelines = "muse")
+acc.varscan2.maf <- GDCquery_Maf("ACC", pipelines = "varscan2")
+acc.somaticsniper.maf <- GDCquery_Maf("ACC", pipelines = "somaticsniper")
+acc.mutect.maf <- GDCquery_Maf("ACC", pipelines = "mutect")
 ```
 
 This mutation data can be visualized through a oncoprint from the  [ComplexHeatmap](http://bioconductor.org/packages/ComplexHeatmap/) package [@ref23].
 
-```{r, echo=TRUE, message=FALSE, warning=FALSE, fig.height=6}
-mut <- GDCquery_Maf(tumor = "ACC")
+```{r, eval=FALSE, message=FALSE, warning=FALSE}
+mut <- GDCquery_Maf("ACC", pipelines = "muse")
 clin <- GDCquery_clinic("TCGA-ACC","clinical")
 clin <- clin[,c("bcr_patient_barcode","disease","gender","tumor_stage","race","vital_status")]
 TCGAvisualize_oncoprint(mut = mut, genes = mut$Hugo_Symbol[1:20],
-                        filename = NULL,
+                        filename = "oncoprint.pdf",
                         annotation = clin,
                         color=c("background"="#CCCCCC","DEL"="purple","INS"="yellow","SNP"="brown"),
                         rows.font.size=10,
+                        width = 5,
                         heatmap.legend.side = "right",
                         dist.col = 0,
                         label.font.size = 10)
+```
+
+```{r, fig.width=6, fig.height=4, echo=FALSE, fig.align="center"}
+library(png)
+library(grid)
+img <- readPNG("oncoprint.png")
+grid.raster(img)
 ```
 
 ## `GDCquery_clinic` and `GDCprepare_clinic`: Working with clinical data.
@@ -581,19 +627,33 @@ there are two main differences:
 * XML has more information: radiation, drugs information, follow-ups, biospecimen, etc. So the indexed one is only a subset of the XML files
 * The indexed data contains the updated data with the follow up informaiton. For example: if the patient is alive in the first time clinical data was collect and the in the next follow-up he is dead, the indexed data will show dead. The XML will have two fields, one for the first time saying he is alive (in the clinical part) and the follow-up saying he is dead. You can see this case here: https://gist.github.com/tiagochst/cfa384297ff0950a6489e3f4b296ecd7
 
-```{r, echo=TRUE, message=FALSE, warning=FALSE, fig.height=6}
+```{r, fig.height=6, message=FALSE, warning=FALSE, include=FALSE}
 clin.query <- GDCquery(project = "TCGA-BLCA", data.category = "Clinical", barcode = "TCGA-FD-A5C0")
-GDCdownload(clin.query)
+ json  <- tryCatch(GDCdownload(clin.query), 
+                   error = function(e) GDCdownload(clin.query, method = "client"))
 clinical.patient <- GDCprepare_clinic(clin.query, clinical.info = "patient")
 clinical.patient.followup <- GDCprepare_clinic(clin.query, clinical.info = "follow_up")
 clinical.index <- GDCquery_clinic("TCGA-BLCA")
+```
 
-# Example of the secon difference:
+```{r, eval=FALSE, fig.height=6, message=FALSE, warning=FALSE, include=TRUE}
+clin.query <- GDCquery(project = "TCGA-BLCA", data.category = "Clinical", barcode = "TCGA-FD-A5C0")
+ json  <- tryCatch(GDCdownload(clin.query), 
+                   error = function(e) GDCdownload(clin.query, method = "client"))
+clinical.patient <- GDCprepare_clinic(clin.query, clinical.info = "patient")
+clinical.patient.followup <- GDCprepare_clinic(clin.query, clinical.info = "follow_up")
+clinical.index <- GDCquery_clinic("TCGA-BLCA")
+```
+
+```{r, echo=TRUE, message=FALSE, warning=FALSE, fig.height=6}
+# Example of the second difference:
 clinical.patient[,c("vital_status","days_to_death","days_to_last_followup")]
 clinical.patient.followup[,c("vital_status","days_to_death","days_to_last_followup")]
 # indexed data is equivalent to follow ups information
-clinical.index["TCGA-FD-A5C0",c("vital_status","days_to_death","days_to_last_follow_up")]
+clinical.index[clinical.index$submitter_id=="TCGA-FD-A5C0",
+               c("vital_status","days_to_death","days_to_last_follow_up")]
 ```
+
 
 You can retrieve clinical data using the `GDCquery_clinic` function. 
 This will get only the indexed GDC clinical data. This is the same as clicking on the
@@ -617,14 +677,24 @@ To parse the TCGA clinical XML files, please use `GDCprepare_clinic` function. I
 argument the query object and which clinical information we should retrieve.
 The possible values for the argument `clinical.info` are:
 
-* drug
-* admin
-* radiation
-* patient
-* stage_event
-* new_tumor_event
-* follow_up
-
+* For clinical XML files:
+    * admin
+    * drug
+    * follow_up
+    * patient
+    * new_tumor_event
+    * radiation
+    * stage_event
+* For biospecimen XML files:
+    * admin
+    * aliquot
+    * analyte 
+    * bio_patient
+    * portion
+    * protocol
+    * sample
+    * slide
+    
 ```{r, eval = FALSE}
 query <- GDCquery(project = "TCGA-COAD", 
                   data.category = "Clinical", 
@@ -634,6 +704,61 @@ clinical <- GDCprepare_clinic(query, clinical.info = "patient")
 clinical.drug <- GDCprepare_clinic(query, clinical.info = "drug")
 clinical.radiation <- GDCprepare_clinic(query, clinical.info = "radiation")
 clinical.admin <- GDCprepare_clinic(query, clinical.info = "admin")
+
+query <- GDCquery(project = "TCGA-COAD", 
+                  data.category = "Biospecimen", 
+                  barcode = c("TCGA-RU-A8FL","TCGA-AA-3972"))
+GDCdownload(query)
+clinical.admin <- GDCprepare_clinic(query, clinical.info = "admin")
+clinical.sample <- GDCprepare_clinic(query, clinical.info = "sample")
+clinical.slide <- GDCprepare_clinic(query, clinical.info = "slide")
+clinical.portion <- GDCprepare_clinic(query, clinical.info = "portion")
+```
+
+To get all the information for TGCA samples you can use the script below:
+```{r, eval = FALSE}
+# This code will get all clinical indexed data from TCGA
+library(TCGAbiolinks)
+library(data.table)
+clinical <- TCGAbiolinks:::getGDCprojects()$project_id %>% 
+            regexPipes::grep("TCGA",value=T) %>% 
+            sort %>% 
+            plyr::alply(1,GDCquery_clinic, .progress = "text") %>% 
+            rbindlist
+readr::write_csv(clinical,path = paste0("all_clin_indexed.csv"))
+
+# This code will get all clinical XML data from TCGA
+getclinical <- function(proj){
+    message(proj)
+    while(1){
+        result = tryCatch({
+            query <- GDCquery(project = proj, data.category = "Clinical")
+            GDCdownload(query)
+            clinical <- GDCprepare_clinic(query, clinical.info = "patient")
+            for(i in c("admin","radiation","follow_up","drug","new_tumor_event")){
+                message(i)
+                aux <- GDCprepare_clinic(query, clinical.info = i)
+                if(is.null(aux)) next
+                # add suffix manually if it already exists
+                replicated <- which(grep("bcr_patient_barcode",colnames(aux), value = T,invert = T) %in% colnames(clinical))
+                colnames(aux)[replicated] <- paste0(colnames(aux)[replicated],".",i)
+                if(!is.null(aux)) clinical <- merge(clinical,aux,by = "bcr_patient_barcode", all = TRUE)
+            }
+            readr::write_csv(clinical,path = paste0(proj,"_clinical_from_XML.csv")) # Save the clinical data into a csv file
+            return(clinical)
+        }, error = function(e) {
+            message(paste0("Error clinical: ", proj))
+        })
+    }
+}
+clinical <- TCGAbiolinks:::getGDCprojects()$project_id %>% 
+    regexPipes::grep("TCGA",value=T) %>% sort %>% 
+    plyr::alply(1,getclinical, .progress = "text") %>% 
+    rbindlist(fill = TRUE) %>% setDF %>% subset(!duplicated(clinical))
+readr::write_csv(clinical,path = "all_clin_XML.csv")
+# result: https://drive.google.com/open?id=0B0-8N2fjttG-WWxSVE5MSGpva1U
+# Obs: this table has multiple lines for each patient, as the patient might have several followups, drug treatments,
+# new tumor events etc...
 ```
 
 
@@ -700,9 +825,12 @@ SS <- TCGAquery_SampleTypes(bar,c("TP","NB"))
 SSS <- TCGAquery_MatchedCoupledSampleTypes(bar,c("NT","TP"))
 
 # Get clinical data
-clinical_brca_data <- TCGAquery_clinic("brca","clinical_patient")
+clin.query <- GDCquery(project = "TCGA-BRCA", data.category = "Clinical",
+                       barcode = c("TCGA-3C-AALK","TCGA-A2-A04Q","TCGA-A4-A04Q"))
+tryCatch(GDCdownload(clin.query), error = function(e) GDCdownload(clin.query, method = "client"))
+clinical.patient <- GDCprepare_clinic(clin.query, clinical.info = "patient")
 female_erpos_herpos <- TCGAquery_clinicFilt(bar,
-                                            clinical_brca_data, 
+                                            clinical.patient, 
                                             HER="Positive", 
                                             gender="FEMALE", 
                                             ER="Positive")
@@ -728,11 +856,15 @@ bar <- c("TCGA-G9-6378-02A-11R-1789-07", "TCGA-CH-5767-04A-11R-1789-07",
          "TCGA-G9-6380-11A-11R-1789-07", "TCGA-G9-6380-01A-11R-1789-07",
          "TCGA-G9-6340-01A-11R-1789-07","TCGA-G9-6340-11A-11R-1789-07")
 
-female_erpos_herpos <- TCGAquery_clinicFilt(bar, 
-                                            clinBRCA, 
-                                            HER = "Positive", 
-                                            gender = "FEMALE", 
-                                            ER = "Positive")
+clin.query <- GDCquery(project = "TCGA-BRCA", data.category = "Clinical",
+                       barcode = c("TCGA-3C-AALK","TCGA-A2-A04Q","TCGA-A4-A04Q"))
+tryCatch(GDCdownload(clin.query), error = function(e) GDCdownload(clin.query, method = "client"))
+clinical.patient <- GDCprepare_clinic(clin.query, clinical.info = "patient")
+female_erpos_herpos <- TCGAquery_clinicFilt(bar,
+                                            clinical.patient, 
+                                            HER="Positive", 
+                                            gender="FEMALE", 
+                                            ER="Positive")
 print(female_erpos_herpos)
 ```
 
@@ -761,39 +893,6 @@ knitr::kable(lgg.gbm.subtype[1:10,c(1,2,3,4)], digits = 2,
              row.names = TRUE)
 ```
 
-## `TCGAquery_investigate`: Find most studied TFs in pubmed 
-
-Find the most studied transcription factors (TFs) 
-in pubmed related to a specific cancer, disease, or tissue.
-
-```{r, eval = FALSE}
-# First perform DEGs with TCGAanalyze
-# See next section 
-library(TCGAbiolinks)
-
-# Select only transcription factors (TFs) from DEGs
-TFs <- TCGAbiolinks:::EAGenes[TCGAbiolinks:::EAGenes$Family =="transcription regulator",]
-TFs_inDEGs <- intersect(TFs$Gene, dataDEGsFiltLevel$mRNA )
-dataDEGsFiltLevelTFs <- dataDEGsFiltLevel[TFs_inDEGs,]
-
-# Order table DEGs TFs according to Delta decrease
-dataDEGsFiltLevelTFs <- dataDEGsFiltLevelTFs[order(dataDEGsFiltLevelTFs$Delta,decreasing = TRUE),]
-
-# Find Pubmed of TF studied related to cancer
-tabDEGsTFPubmed <- TCGAquery_investigate("breast", dataDEGsFiltLevelTFs, topgenes = 10)
-
-```
-
-The result is shown below:
-
-```{r, eval = TRUE, echo = FALSE}
-library(TCGAbiolinks)
-library(stringr)
-tabDEGsTFPubmed$PMID <- str_sub(tabDEGsTFPubmed$PMID,0,30)
-knitr::kable(tabDEGsTFPubmed, digits = 2, 
-             caption = "Table with most studied TF in pubmed related to a specific cancer",
-             row.names = FALSE)
-```
 
 # `GDCdownload`: Downloading GDC data  
 You can easily download data using the `GDCdownload` function.
@@ -809,6 +908,7 @@ The arguments are:
 *  **token.file** A token file to download protect data (not test yet)
 *  **method** Use API (POST method) or gdc client tool (API is faster, but the data might get corrupted in the download, and it might need to be executed again). Options: "api", "client"
 *  **directory** Directory/Folder where the data was downloaded. Default: GDCdata
+*  **chunks.per.download**  This will make the API method only download n (chunks.per.download) files at a time. This may reduce the download problems when the data size is too large.
 
 ### `GDCdownload`: Example of use
 ```{r, eval = FALSE}
@@ -818,29 +918,67 @@ query <- GDCquery(project = "TCGA-ACC", data.category = "Copy Number Variation",
 GDCdownload(query)
 data <- GDCprepare(query)
 
-query <- GDCquery(project = "TCGA-GBM",
+#-------------------------------------- 
+# Gene expression
+#-------------------------------------- 
+# Aligned against Hg38
+# mRNA pipeline: https://gdc-docs.nci.nih.gov/Data/Bioinformatics_Pipelines/Expression_mRNA_Pipeline/
+query.exp.hg38 <- GDCquery(project = "TCGA-GBM", 
+                  data.category = "Transcriptome Profiling", 
+                  data.type = "Gene Expression Quantification", 
+                  workflow.type = "HTSeq - FPKM-UQ",
+                  barcode =  c("TCGA-14-0736-02A-01R-2005-01", "TCGA-06-0211-02A-02R-2005-01"))
+GDCdownload(query.exp.hg38)
+expdat <- GDCprepare(query = query.exp.hg38,
+                     save = TRUE, 
+                     save.filename = "exp.rda")
+
+# Aligned against Hg19
+query.exp.hg19 <- GDCquery(project = "TCGA-GBM",
                   data.category = "Gene expression",
                   data.type = "Gene expression quantification",
-                  platform = "Illumina HiSeq", file.type  = "normalized_results",
-                  experimental.strategy = "RNA-seq",
+                  platform = "Illumina HiSeq", 
+                  file.type  = "normalized_results",
+                  experimental.strategy = "RNA-Seq",
                   barcode = c("TCGA-14-0736-02A-01R-2005-01", "TCGA-06-0211-02A-02R-2005-01"),
                   legacy = TRUE)
-GDCdownload(query)
-z <- GDCprepare(query)
+GDCdownload(query.exp.hg19)
+data <- GDCprepare(query.exp.hg19)
 
-# A function to download only 2 samples
-legacyPipeline <- function(project, data.category, platform){
+
+#-------------------------------------- 
+# DNA methylation data
+#-------------------------------------- 
+# DNA methylation aligned to hg38
+query_met.hg38 <- GDCquery(project= "TCGA-LGG", 
+                           data.category = "DNA Methylation", 
+                           platform = "Illumina Human Methylation 450", 
+                           barcode = c("TCGA-HT-8111-01A-11D-2399-05","TCGA-HT-A5R5-01A-11D-A28N-05"))
+GDCdownload(query_met.hg38)
+data.hg38 <- GDCprepare(query_met.hg38)
+
+# DNA methylation aligned to hg19
+query_meth.hg19 <- GDCquery(project= "TCGA-LGG", 
+                            data.category = "DNA methylation", 
+                            platform = "Illumina Human Methylation 450", 
+                            barcode = c("TCGA-HT-8111-01A-11D-2399-05","TCGA-HT-A5R5-01A-11D-A28N-05"), 
+                            legacy = TRUE)
+GDCdownload(query_meth.hg19)
+data.hg19 <- GDCprepare(query_meth.hg19)
+
+# A function to download only 20 samples
+legacyPipeline <- function(project, data.category, platform, n = 20){
     query <- GDCquery(project = project,
                       data.category = data.category,
                       platform = platform,
                       legacy = TRUE)
-    cases <- query$results[[1]]$cases[1:2] # Get two samples from the search
+    cases <- query$results[[1]]$cases[1:n] # Get two samples from the search
     query <- GDCquery(project = project,
                       data.category = data.category,
                       platform = platform,
                       legacy = TRUE,
                       barcode = cases)
-    GDCdownload(query)
+    GDCdownload(query,chunks.per.download = 5)
     data <- GDCprepare(query)
     return(data)
 }
@@ -849,7 +987,34 @@ data <- legacyPipeline("TCGA-GBM","DNA methylation","Illumina Human Methylation 
 data <- legacyPipeline("TCGA-GBM","DNA methylation","Illumina Human Methylation 450")
 data <- legacyPipeline("TCGA-GBM","DNA methylation","Illumina DNA Methylation OMA003 CPI")
 data <- legacyPipeline("TCGA-GBM","DNA methylation","Illumina DNA Methylation OMA002 CPI")
-data <- legacyPipeline("TCGA-GBM","DNA methylation","Illumina DNA Methylation OMA002 CPI")
+
+#-------------------------------------------------------
+# Example to  idat files from TCGA projects
+#-------------------------------------------------------
+projects <- TCGAbiolinks:::getGDCprojects()$project_id
+projects <- projects[grepl('^TCGA',projects,perl=T)]
+match.file.cases.all <- NULL
+for(proj in projects){
+    print(proj)
+    query <- GDCquery(project = proj,
+                      data.category = "Raw microarray data",
+                      data.type = "Raw intensities", 
+                      experimental.strategy = "Methylation array", 
+                      legacy = TRUE,
+                      file.type = ".idat",
+                      platform = "Illumina Human Methylation 450")
+    match.file.cases <- query$results[[1]][,c("file_name","cases")]
+    match.file.cases$project <- proj
+    match.file.cases.all <- rbind(match.file.cases.all,match.file.cases)
+    tryCatch(GDCdownload(query, method = "api",chunks.per.download = 20),
+             error = function(e) GDCdownload(query, method = "client"))
+}
+# This will create a map between idat file name, cases (barcode) and project
+readr::write_tsv(match.file.cases.all, path =  "idat_filename_case.txt")
+# code to move all files to local folder
+for(file in dir(".",pattern = ".idat", recursive = T)){
+    TCGAbiolinks::move(file,basename(file))
+}
 ```
 
 # `GDCprepare`: Preparing the data
@@ -924,6 +1089,7 @@ The arguments are:
 * **summarizedExperiment** Should the output be a SummarizedExperiment object? Default: `TRUE`
 * **directory** Directory/Folder where the data was downloaded. Default: GDCdata
 * **remove.files.prepared** Remove the files read? Default: FALSE. This argument will be considered only if save argument is set to true
+* **add.gistic2.mut** 	If a list of genes (gene symbol) is given columns with gistic2 results from GDAC firehose and a column indicating if there is or not mutation in that gene (TRUE or FALSE - use the maf file for more information) will be added to the sample matrix in the summarized Experiment object
 
 ```{r, eval = FALSE}
 library(TCGAbiolinks)
@@ -951,9 +1117,13 @@ query <- GDCquery(project = "TCGA-GBM",
                   platform = "Illumina Human Methylation 27",legacy = TRUE,
                   barcode = c("TCGA-02-0047-01A-01D-0186-05","TCGA-06-2559-01A-01D-0788-05"))
 GDCdownload(query)
-data <- GDCprepare(query)
-```
+data <- GDCprepare(query, add.gistic2.mut = c("PTEN","FOXJ1"))
 
+# To view gistic and mutation information please access the samples information matrix in the summarized Experiment object
+library(SummarizedExperiment)
+samples.information <- colData(data)
+
+```
 
 # `TCGAanalyze`: Analyze data from TCGA. 
 You can easily analyze data using following functions:
@@ -972,8 +1142,8 @@ listSamples <- c("TCGA-E9-A1NG-11A-52R-A14M-07","TCGA-BH-A1FC-11A-32R-A13Q-07",
 # Query platform Illumina HiSeq with a list of barcode 
 query <- GDCquery(project = "TCGA-BRCA", 
                   data.category = "Gene expression",
-                  data.type = "Gene Expression Quantification",
-                  experimental.strategy = "RNA-seq",
+                  data.type = "Gene expression quantification",
+                  experimental.strategy = "RNA-Seq",
                   platform = "Illumina HiSeq",
                   file.type = "results",
                   barcode = listSamples, 
@@ -1152,13 +1322,16 @@ The arguments of `TCGAanalyze_survival` are:
 *  **clusterCol** Column with groups to plot. This is a mandatory field, 
 the caption will be based in this column
 *  **legend** Legend title of the figure
-*  **cutoff** xlim This parameter will be a limit in the x-axis. 
+*  **xlim** xlim This parameter will be a limit in the x-axis. 
 That means, that patients with days_to_deth > cutoff will be set to Alive.
 *  **main**	 main title of the plot
 *  **ylab**	y-axis text of the plot
 *  **xlab** x-axis text of the plot
 *  **filename**	 The name of the pdf file
 *  **color** Define the colors of the lines.
+*  **pvalue** Show pvalue in the plot. 
+*  **risk.table** 	Show or not the risk table
+*  **conf.int** 	Show confidence intervals for point estimaes of survival curves.
 
 The result is shown below:
 ```{r, fig.width=6, fig.height=4, echo = FALSE, fig.align="center",hide=TRUE, message=FALSE,warning=FALSE}
@@ -1173,7 +1346,7 @@ grid.raster(img)
 library(TCGAbiolinks)
 # Survival Analysis SA
 
-clinical_patient_Cancer <- TCGAquery_clinic("TCGA-BRCA","clinical")
+clinical_patient_Cancer <- GDCquery_clinic("TCGA-BRCA","clinical")
 dataBRCAcomplete <- log2(BRCA_rnaseqv2)
 
 tokenStop<- 1
@@ -1195,9 +1368,6 @@ for( i in 1: round(nrow(dataBRCAcomplete)/100)){
 }
 
 tabSurvKMcomplete <- tabSurvKMcomplete[tabSurvKMcomplete$pvalue < 0.01,]
-tabSurvKMcomplete <- tabSurvKMcomplete[!duplicated(tabSurvKMcomplete$mRNA),]
-rownames(tabSurvKMcomplete) <-tabSurvKMcomplete$mRNA
-tabSurvKMcomplete <- tabSurvKMcomplete[,-1]
 tabSurvKMcomplete <- tabSurvKMcomplete[order(tabSurvKMcomplete$pvalue, decreasing=F),]
 
 tabSurvKMcompleteDEGs <- tabSurvKMcomplete[
@@ -1207,11 +1377,11 @@ tabSurvKMcompleteDEGs <- tabSurvKMcomplete[
 The result is shown below:
 ```{r, fig.width=6, fig.height=4, echo=FALSE, fig.align="center"}
 tabSurvKMcompleteDEGs$pvalue <- format(tabSurvKMcompleteDEGs$pvalue, scientific = TRUE)
-knitr::kable(tabSurvKMcompleteDEGs[1:10,1:4], 
+knitr::kable(tabSurvKMcompleteDEGs[1:5,1:4], 
              digits = 2,
              caption = "Table KM-survival genes after SA",
              row.names = TRUE)
-knitr::kable(tabSurvKMcompleteDEGs[1:10,5:7], 
+knitr::kable(tabSurvKMcompleteDEGs[1:5,5:7], 
              digits = 2,
              row.names = TRUE)
 ```
@@ -1236,7 +1406,7 @@ methylated CpG sites, then the results are saved in a csv file (DMR_results.grou
 
 The arguments of TCGAanalyze_DMR are:
 
-* **data** SummarizedExperiment obtained from the GDCp/repare
+* **data** SummarizedExperiment obtained from the GDCprepare
 * **groupCol**  Columns with the groups inside the SummarizedExperiment
 object. (This will be obtained by the function colData(data)
 * **group1 ** In case our object has more than 2 groups, you should set
@@ -1398,19 +1568,28 @@ uses the [ComplexHeatmap](http://bioconductor.org/packages/ComplexHeatmap/) to c
 * **annotation.position** Position of the annotation "bottom" or "top"
 * **label.title** Title of the label
 
-```{r, echo=TRUE, fig.height=6, message=FALSE, warning=FALSE}
-mut <- GDCquery_Maf(tumor = "ACC")
+```{r, eval=FALSE, message=FALSE, warning=FALSE}
+mut <- GDCquery_Maf(tumor = "ACC", pipelines = "muse")
 clin <- GDCquery_clinic("TCGA-ACC","clinical")
 clin <- clin[,c("bcr_patient_barcode","disease","gender","tumor_stage","race","vital_status")]
 TCGAvisualize_oncoprint(mut = mut, genes = mut$Hugo_Symbol[1:20],
-                        filename = NULL,
+                        filename = "oncoprint.pdf",
                         annotation = clin,
                         color=c("background"="#CCCCCC","DEL"="purple","INS"="yellow","SNP"="brown"),
                         rows.font.size=10,
                         heatmap.legend.side = "right",
-                        dist.col = 0,
+                        dist.col = 0, 
+                        width = 5,
                         label.font.size = 10)
 ```
+
+```{r, fig.width=6, fig.height=4, echo=FALSE, fig.align="center"}
+library(png)
+library(grid)
+img <- readPNG("oncoprint.png")
+grid.raster(img)
+```
+
 
 The columns are the samples and the rows are genes. The upper histograms shows the number
 of mutation of each samples, the right histogram shows the number of patients that has that mutation (which 
@@ -1517,7 +1696,8 @@ to create a mean DNA methylation boxplot with the function
 `TCGAvisualize_meanMethylation` as follows:
 
 ```{r,include=FALSE,echo=FALSE, fig.height=5, message=FALSE, warning=FALSE}
-query <- GDCquery(project = "TCGA-GBM",
+data <- tryCatch({
+    query <- GDCquery(project = "TCGA-GBM",
                   data.category = "DNA methylation",
                   platform = "Illumina Human Methylation 27",
                   legacy = TRUE, 
@@ -1525,8 +1705,29 @@ query <- GDCquery(project = "TCGA-GBM",
                               "TCGA-12-0829-01A-01D-0392-05", "TCGA-06-0155-01B-01D-0521-05",
                               "TCGA-02-0099-01A-01D-0199-05", "TCGA-19-4068-01A-01D-1228-05",
                               "TCGA-19-1788-01A-01D-0595-05", "TCGA-16-0848-01A-01D-0392-05"))
-GDCdownload(query, method = "api")
-data <- GDCprepare(query)
+            GDCdownload(query, method = "api", chunks.per.download = 2)
+            GDCdownload(query, method = "api")
+            data <- GDCprepare(query)
+             data
+    }, error = function(e) {
+         nrows <- 200; ncols <- 21
+         counts <- matrix(runif(nrows * ncols, 0, 1), nrows)
+         rowRanges <- GenomicRanges::GRanges(rep(c("chr1", "chr2"), c(50, 150)),
+                            IRanges::IRanges(floor(runif(200, 1e5, 1e6)), width=100),
+                            strand=sample(c("+", "-"), 200, TRUE),
+                            feature_id=sprintf("ID%03d", 1:200))
+        colData <- S4Vectors::DataFrame(shortLetterCode=rep(c("NT", "TP","TR"), 7),
+                         row.names=LETTERS[1:21],
+                         subtype_Pan.Glioma.DNA.Methylation.Cluster=rep(c("group1","group2","group3"),c(7,7,7)),
+                         vital_status=rep(c("DEAD","ALIVE","DEAD"),7))
+        data <- SummarizedExperiment::SummarizedExperiment(
+                    assays=S4Vectors::SimpleList(counts=counts),
+                    rowRanges=rowRanges,
+                    colData=colData)
+        data
+
+        }
+    )
 ```
 
 ```{r, eval=FALSE, echo=TRUE, fig.height=5, message=FALSE, warning=FALSE}
@@ -1566,7 +1767,7 @@ of the subgroups. Example: shapes = c(21,23) if for two levels
 * **y.limits** Change lower/upper y-axis limit 
 
 Other examples using the parameters:
-```{r, echo=TRUE, fig.height=5, message=FALSE, warning=FALSE}
+```{r, echo=TRUE, message=FALSE, warning=FALSE}
 # setting y limits: lower 0, upper 1
 TCGAvisualize_meanMethylation(data,groupCol = "shortLetterCode",filename = NULL, y.limits = c(0,1))
 # setting y limits: lower 0
@@ -1646,49 +1847,132 @@ img <- readPNG("figure5star.png")
 grid.raster(img)
 ```
 
-## `TCGAvisualize_profilePlot`: Analyzing the association between cancer subtypes and clustering
 
-Sometimes we would like to see the distribution of some features in each cluster.
-We could do a barplot for each cluster in which the bars would have the
-counts of the subtypes.
 
-But here, we propose another way to display the association between cancer subtypes 
-and any kind of clustering is using the `TCGAvisualize_profilePlot` function.
 
-The profilePlot will have tree important regions, the distribuition in percentage
-of a feature inside the cluster (cental bars), 
-the distribution of the samples over the clusters (left bar),
-and the subytype distribution taking in cosideration all samples (bottom bar).
+# GDC Downstream Pipeline
 
-The arguments of this function are:
+## HTSeq data: Downstream analysis BRCA
+```{r,eval=FALSE,echo=TRUE,message=FALSE,warning=FALSE}
 
-* **data** Dataframe with at least two columns (groupCol and subtypeCol)
-* **groupCol** The name of the column with the group information
-* **subtypeCol** The name of the column with the subtype information
-* **colors** A vector of colors 
-* **na.rm.groups** Remove the NA groups? DEAFULT: `FALSE`
-* **na.rm.subtypes** Remove the NA subtypes? DEAFULT: `FALSE`
+CancerProject <- "TCGA-BRCA"
+DataDirectory <- paste0("../GDC/",gsub("-","_",CancerProject))
+FileNameData <- paste0(DataDirectory, "_","HTSeq_Counts",".rda")
 
-```{r, eval = FALSE}
-df <- TCGAquery_subtype("lgg")
-TCGAvisualize_profilePlot(df, 
-                          groupCol = "RNASeqCluster", 
-                          subtypeCol =  "IDH.1p19q.Subtype", 
-                          na.rm.groups = TRUE)
+query <- GDCquery(project = CancerProject,
+                  data.category = "Transcriptome Profiling",
+                  data.type = "Gene Expression Quantification", 
+                  workflow.type = "HTSeq - Counts")
+
+samplesDown <- query$results[[1]]$cases
+
+dataSmTP <- TCGAquery_SampleTypes(barcode = samplesDown,
+                                  typesample = "TP")
+
+dataSmNT <- TCGAquery_SampleTypes(barcode = samplesDown,
+                                  typesample = "NT")
+dataSmTP_short <- dataSmTP[1:10]
+dataSmNT_short <- dataSmNT[1:10]
+
+queryDown <- GDCquery(project = CancerProject, 
+                      data.category = "Transcriptome Profiling",
+                      data.type = "Gene Expression Quantification", 
+                      workflow.type = "HTSeq - Counts", 
+                      barcode = c(dataSmTP_short, dataSmNT_short))
+                    
+GDCdownload(query = queryDown,
+            directory = DataDirectory)
+
+dataPrep <- GDCprepare(query = queryDown, 
+                       save = TRUE, 
+                       directory =  DataDirectory,
+                       save.filename = FileNameData)
+
+dataPrep <- TCGAanalyze_Preprocessing(object = dataPrep, 
+                                      cor.cut = 0.6)                      
+
+dataNorm <- TCGAanalyze_Normalization(tabDF = dataPrep,
+                                      geneInfo = geneInfoHT,
+                                      method = "gcContent") 
+
+boxplot(dataPrep, outline = FALSE)
+
+boxplot(dataNorm, outline = FALSE)
+
+dataFilt <- TCGAanalyze_Filtering(tabDF = dataNorm,
+                                  method = "quantile", 
+                                  qnt.cut =  0.25)   
+
+dataDEGs <- TCGAanalyze_DEA(mat1 = dataFilt[,dataSmTP_short],
+                            mat2 = dataFilt[,dataSmNT_short],
+                            Cond1type = "Normal",
+                            Cond2type = "Tumor",
+                            fdr.cut = 0.01 ,
+                            logFC.cut = 1,
+                            method = "glmLRT")  
+
 ```
 
 
-```{r, fig.width=6, fig.height=4, echo = FALSE, fig.align="center",hide=TRUE, message=FALSE,warning=FALSE}
-library(png)
-library(grid)
-img <- readPNG("profilePlot.png")
-grid.raster(img)
-```
+## miRNA expression data: Downstream analysis BRCA
+```{r,eval=FALSE,echo=TRUE,message=FALSE,warning=FALSE}
+require(TCGAbiolinks)
 
-One possible interpretation that this plot can provide to the user is that
-if the cluster profiles ( distribution of the subtypes in each cluster) 
-are close to the subtype distribution considering all samples (bottom bar) 
-then there is no association between the subtypes and the clustering.
+CancerProject <- "TCGA-BRCA"
+DataDirectory <- paste0("../GDC/",gsub("-","_",CancerProject))
+FileNameData <- paste0(DataDirectory, "_","miRNA_gene_quantification",".rda")
+
+query.miR <- GDCquery(project = CancerProject, 
+                  data.category = "Gene expression",
+                  data.type = "miRNA gene quantification",
+                  file.type = "hg19.mirna",
+                  legacy = TRUE)
+
+samplesDown.miR <- query.miR$results[[1]]$cases
+
+dataSmTP.miR <- TCGAquery_SampleTypes(barcode = samplesDown.miR,
+                                  typesample = "TP")
+
+dataSmNT.miR <- TCGAquery_SampleTypes(barcode = samplesDown.miR,
+                                  typesample = "NT")
+dataSmTP_short.miR <- dataSmTP.miR[1:10]
+dataSmNT_short.miR <- dataSmNT.miR[1:10]
+
+queryDown.miR <- GDCquery(project = CancerProject, 
+                      data.category = "Gene expression",
+                      data.type = "miRNA gene quantification",
+                      file.type = "hg19.mirna",
+                      legacy = TRUE,
+                      barcode = c(dataSmTP_short.miR, dataSmNT_short.miR))
+
+GDCdownload(query = queryDown.miR,
+            directory = DataDirectory)
+
+dataAssy.miR <- GDCprepare(query = queryDown.miR, 
+                           save = TRUE, 
+                           save.filename = FileNameData, 
+                           summarizedExperiment = TRUE,
+                           directory =DataDirectory )
+rownames(dataAssy.miR) <- dataAssy.miR$miRNA_ID
+
+# using read_count's data 
+read_countData <-  colnames(dataAssy.miR)[grep("count", colnames(dataAssy.miR))]
+dataAssy.miR <- dataAssy.miR[,read_countData]
+colnames(dataAssy.miR) <- gsub("read_count_","", colnames(dataAssy.miR))
+
+dataFilt <- TCGAanalyze_Filtering(tabDF = dataAssy.miR,
+                                  method = "quantile", 
+                                  qnt.cut =  0.25)   
+
+dataDEGs <- TCGAanalyze_DEA(mat1 = dataFilt[,dataSmNT_short.miR],
+                            mat2 = dataFilt[,dataSmTP_short.miR],
+                            Cond1type = "Normal",
+                            Cond2type = "Tumor",
+                            fdr.cut = 0.01 ,
+                            logFC.cut = 1,
+                            method = "glmLRT")  
+
+```
 
 # TCGA Downstream Analysis: Case Studies
 
@@ -1703,7 +1987,7 @@ The code is divided in 4 case study:
 * 4. Elmer pipeline (KIRC)
 
 
-## Arguments definition
+## Case study n. 1: Pan Cancer downstream analysis BRCA
 ```{r,eval=FALSE,echo=TRUE,message=FALSE,warning=FALSE}
 library(SummarizedExperiment)
 library(TCGAbiolinks)
@@ -1713,7 +1997,7 @@ query.exp <- GDCquery(project = "TCGA-BRCA",
                       data.type = "Gene expression quantification",
                       platform = "Illumina HiSeq", 
                       file.type = "results",
-                      experimental.strategy = "RNA-seq",
+                      experimental.strategy = "RNA-Seq",
                       sample.type = c("Primary solid Tumor","Solid Tissue Normal"))
 GDCdownload(query.exp)
 brca.exp <- GDCprepare(query = query.exp, save = TRUE, save.filename = "brcaExp.rda")
@@ -1849,7 +2133,7 @@ query.exp <- GDCquery(project = "TCGA-LGG",
                       data.type = "Gene expression quantification",
                       platform = "Illumina HiSeq", 
                       file.type = "results",
-                      experimental.strategy = "RNA-seq",
+                      experimental.strategy = "RNA-Seq",
                       sample.type = "Primary solid Tumor")
 GDCdownload(query.exp)
 lgg.exp <- GDCprepare(query = query.exp, save = TRUE, save.filename = "lggExp.rda")
@@ -1955,43 +2239,6 @@ img <- readPNG("case2_surv.png")
 grid.raster(img)
 ```
 
-Second, we will create profile plots for: IDH.1p19q.Subtype, 
-methylation cluster and age, for the EC groups.
-
-```{r,eval=FALSE,echo=TRUE,message=FALSE,warning=FALSE}
-TCGAvisualize_profilePlot(clin_subt,
-                          groupCol="groupsHC",
-                          subtypeCol="IDH.codel.subtype",
-                          filename = "case2_Idh.png",
-                          plot.margin = c(-4.0, -2.5, -0.5, 2),
-                          na.rm.groups = TRUE)
-```
-
-The IDH subgroup profile plot is shown below:
-```{r, fig.width=6, fig.height=4, echo = FALSE, fig.align="center",hide=TRUE, message=FALSE,warning=FALSE}
-library(png)
-library(grid)
-img <- readPNG("case2_Idh.png")
-grid.raster(img)
-```
-
-
-```{r,eval=FALSE,echo=TRUE,message=FALSE,warning=FALSE}
-TCGAvisualize_profilePlot(clin_subt,
-                          groupCol="groupsHC",
-                          subtypeCol="Supervised.DNA.Methylation.Cluster",
-                          filename = "case2_Met.png",
-                          plot.margin = c(-4.0, -2.5, -0.5, 2),
-                          na.rm.groups = TRUE)
-```
-
-The Methylation subgroup profile plot is shown below:
-```{r, fig.width=6, fig.height=4, echo = FALSE, fig.align="center",hide=TRUE, message=FALSE,warning=FALSE}
-library(png)
-library(grid)
-img <- readPNG("case2_Met.png")
-grid.raster(img)
-```
 
 We will also, create a heatmap of the expression.
 ```{r,eval=FALSE,echo=TRUE,message=FALSE,warning=FALSE}
@@ -2030,7 +2277,7 @@ grid.raster(img)
 Finally, we will take a look in the mutation genes. We will first download the maf file
 with `TCGAquery_maf`. In this example we will investigate the gene "ATRX".
 ```{r,eval=FALSE,echo=TRUE,message=FALSE,warning=FALSE}
-LGGmut <- GDCquery_Maf(tumor = "LGG") 
+LGGmut <- GDCquery_Maf(tumor = "LGG", pipelines = "muse")
 # Selecting gene
 mRNAsel <- "ATRX"
 LGGselected <- LGGmut[LGGmut$Hugo_Symbol == mRNAsel,]
@@ -2041,47 +2288,6 @@ dataMut$Tumor_Sample_Barcode <- substr(dataMut$Tumor_Sample_Barcode,1,12)
 # Adding the Expression Cluster classification found before
 dataMut <- merge(dataMut, cluster, by.y="patient", by.x="Tumor_Sample_Barcode")
 dataMut <- dataMut[dataMut$Variant_Classification!=0,]
-```
-
-We can see the distribution of the subtypes Variant_Classification 
-of the gene ATRX by HC groups.
-
-```{r,eval=FALSE,echo=TRUE,message=FALSE,warning=FALSE}
-TCGAvisualize_profilePlot(dataMut,
-                          groupCol = "groupsHC",
-                          subtypeCol =  "Variant_Classification",
-                          na.rm.groups = FALSE,
-                          plot.margin = c(-4.0, -2.5, -1.5, 2),
-                          filename = paste0(mRNAsel,"_Mutation_Variant_Classification.png"))
-```
-
-The result is shown below:
-```{r, fig.width=6, fig.height=4, echo = FALSE, fig.align="center",hide=TRUE, message=FALSE,warning=FALSE}
-library(png)
-library(grid)
-img <- readPNG("ATRX_Mutation_Variant_Classification.png")
-grid.raster(img)
-```
-
-
-We can see the distribution of the subtypes Variant_Type of the gene ATRX by HC groups.
-
-
-```{r,eval=FALSE,echo=TRUE,message=FALSE,warning=FALSE}
-TCGAvisualize_profilePlot(dataMut,
-                          groupCol = "groupsHC",
-                          subtypeCol =  "Variant_Type",
-                          na.rm.groups = FALSE,
-                          plot.margin = c(-4.0, -2.5, -1.5, 2),
-                          filename = paste0(mRNAsel,"_Mutation_Variant_Type_in_EC_clusters.png"))
-```
-
-The result is shown below:
-```{r, fig.width=6, fig.height=4, echo = FALSE, fig.align="center",hide=TRUE, message=FALSE,warning=FALSE}
-library(png)
-library(grid)
-img <- readPNG("ATRX_Mutation_Variant_Type_in_EC_clusters.png")
-grid.raster(img)
 ```
 
 ## Case study n. 3: Integration of methylation and expression for ACC
